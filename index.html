@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QA Project Overview Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f0f2f5;
+      margin: 0;
+      padding: 0;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      background-color: #003366;
+      padding: 10px 20px;
+      color: white;
+    }
+    header img {
+      height: 40px;
+      margin-right: 15px;
+    }
+    header h1 {
+      font-size: 20px;
+      margin: 0;
+    }
+    .container {
+      max-width: 1400px;
+      margin: 20px auto;
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      margin-bottom: 25px;
+    }
+    .controls select,
+    .controls input,
+    .controls button {
+      padding: 10px;
+      font-size: 15px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      min-width: 180px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      font-size: 14px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 12px;
+      text-align: left;
+    }
+    th {
+      background-color: #e9ecef;
+      color: #333;
+    }
+    tr:nth-child(even) {
+      background-color: #fdfdfd;
+    }
+    tr:hover {
+      background-color: #f1f3f5;
+    }
+    canvas {
+      margin-top: 40px;
+      max-width: 100%;
+    }
+    .milestone-box {
+      margin-top: 30px;
+      padding: 20px;
+      background-color: #ffffff;
+      border: 1px solid #cfd4da;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+    .milestone-box h3 {
+      margin-top: 0;
+      color: #003366;
+      font-size: 18px;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 8px;
+    }
+    .milestone-entry {
+      margin-bottom: 15px;
+      padding: 10px;
+      background: #f8f9fa;
+      border-left: 4px solid #007bff;
+      border-radius: 6px;
+    }
+    .milestone-entry strong {
+      display: inline-block;
+      min-width: 140px;
+      color: #333;
+    }
+    .add-row-btn {
+      margin-top: 20px;
+      padding: 10px 20px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .add-row-btn:hover {
+      background-color: #0056b3;
+    }
+    .delete-btn {
+      background-color: red;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      cursor: pointer;
+      border-radius: 5px;
+      margin-right: 5px;
+      position: relative;
+    }
+    .delete-btn:hover {
+      background-color: darkred;
+    }
+    .apply-btn {
+      background-color: green;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      cursor: pointer;
+      border-radius: 5px;
+      position: relative;
+    }
+    .apply-btn:hover {
+      background-color: darkgreen;
+    }
+    .loading::after {
+      content: '';
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid #fff;
+      border-radius: 50%;
+      border-top-color: transparent;
+      animation: spin 1s linear infinite;
+      position: absolute;
+      top: 50%;
+      right: 5px;
+      transform: translateY(-50%);
+    }
+    @keyframes spin {
+      to { transform: translateY(-50%) rotate(360deg); }
+    }
+    .loading {
+      pointer-events: none;
+      opacity: 0.7;
+    }
+    .error-message {
+      color: red;
+      margin: 10px 0;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="images/logo.png" alt="Logo">
+    <h1>QA Project Overview Tracker</h1>
+  </header>
+
+  <div class="container">
+    <div class="error-message" id="errorMessage">
+      Error: This app must be run on a web server (e.g., localhost) to connect to Firebase. See instructions below.
+    </div>
+    <div class="controls">
+      <select id="projectFilter" onchange="filterTable()">
+        <option value="">Filter by Project</option>
+        <option value="Project Alpha">Project Alpha</option>
+      </select>
+      <input type="text" id="qaFilter" placeholder="Filter by QA Name" oninput="filterTable()">
+      <button onclick="exportTableToExcel()">Export Table</button>
+    </div>
+
+    <table id="qaTable">
+      <thead>
+        <tr>
+          <th>Project Name</th>
+          <th>QA Name</th>
+          <th>Testing Phase</th>
+          <th>Total Bugs</th>
+          <th>Functional Bugs</th>
+          <th>HTML Bugs</th>
+          <th>Total Issues</th>
+          <th>Phase Start Date</th>
+          <th>Phase End Date</th>
+          <th>Rejected - Reason</th>
+          <th>Rejected Date</th>
+          <th>Approved (Go Live)</th>
+          <th>Approved Date</th>
+          <th>Not Approved - Reason</th>
+          <th>Not Approved Date</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Rows will be populated dynamically from Firestore -->
+      </tbody>
+    </table>
+
+    <button class="add-row-btn" onclick="addNewRow()">+ Add New Row</button>
+
+    <div class="milestone-box" id="milestoneBox" style="display:none;">
+      <h3>Project Milestone Timeline</h3>
+      <div id="milestoneList"></div>
+    </div>
+
+    <canvas id="bugChart" height="100"></canvas>
+  </div>
+
+  <script>
+    // Firebase Configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyAhl6jOgum2lRQe_M8mAodPFRtCUK5kYcY",
+      authDomain: "qa-project-tracker.firebaseapp.com",
+      projectId: "qa-project-tracker",
+      storageBucket: "qa-project-tracker.appspot.com",
+      messagingSenderId: "876542181974",
+      appId: "1:876542181974:web:346847b1244e2395ec71f7"
+    };
+
+    // Check if the app is running on a server
+    if (window.location.protocol === 'file:') {
+      document.getElementById('errorMessage').style.display = 'block';
+      console.error('This app must be run on a web server (e.g., localhost) to connect to Firebase.');
+      console.log('To run locally, use a simple server. For example:');
+      console.log('1. Install Node.js if not already installed.');
+      console.log('2. Open a terminal in the project directory.');
+      console.log('3. Run: npm install -g serve');
+      console.log('4. Then run: serve');
+      console.log('5. Open your browser and go to http://localhost:3000');
+      throw new Error('App must be run on a server to connect to Firebase.');
+    }
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // Load data from Firestore on page load
+    function loadDataFromFirestore() {
+      const tableBody = document.querySelector('#qaTable tbody');
+      tableBody.innerHTML = ''; // Clear existing rows
+
+      const projectRef = db.collection('qaProjects').doc('Project Alpha');
+      projectRef.get().then(doc => {
+        if (doc.exists) {
+          const data = doc.data();
+          console.log('Firestore data loaded:', data); // Debug log
+          const rows = data.rows || [];
+          rows.forEach((row, index) => {
+            const newRow = document.createElement('tr');
+            newRow.setAttribute('onclick', `showMilestones('${row.projectName}')`);
+            newRow.setAttribute('data-index', index); // Store index for updates
+            newRow.innerHTML = `
+              <td contenteditable="true">${row.projectName || ''}</td>
+              <td contenteditable="true">${row.qaName || ''}</td>
+              <td contenteditable="true">${row.testingPhase || ''}</td>
+              <td contenteditable="true">${row.totalBugs || ''}</td>
+              <td contenteditable="true">${row.functionalBugs || ''}</td>
+              <td contenteditable="true">${row.htmlBugs || ''}</td>
+              <td contenteditable="true">${row.totalIssues || ''}</td>
+              <td contenteditable="true">${row.phaseStart || ''}</td>
+              <td contenteditable="true">${row.phaseEnd || ''}</td>
+              <td contenteditable="true">${row.rejectReason || ''}</td>
+              <td contenteditable="true">${row.rejectDate || ''}</td>
+              <td contenteditable="true">${row.approved || ''}</td>
+              <td contenteditable="true">${row.approvedDate || ''}</td>
+              <td contenteditable="true">${row.notApprovedReason || ''}</td>
+              <td contenteditable="true">${row.notApprovedDate || ''}</td>
+              <td>
+                <button class="delete-btn" onclick="deleteRow(this)">Delete</button>
+                <button class="apply-btn" onclick="applyRow(this)">Apply</button>
+              </td>
+            `;
+            tableBody.appendChild(newRow);
+          });
+
+          // Update the chart with Firestore data
+          updateChart(rows);
+        } else {
+          console.log('Document does not exist, creating new one'); // Debug log
+          // If the document doesn't exist, create it with an empty rows array
+          projectRef.set({ rows: [] })
+            .then(() => console.log('Initialized empty document in Firestore'))
+            .catch(err => console.error('Error initializing document:', err.message));
+        }
+      }).catch(err => {
+        console.error('Error loading data from Firestore:', err.message); // Detailed error log
+        alert('Failed to load data from Firestore. Check the console for details.');
+      });
+    }
+
+    function addNewRow() {
+      const tableBody = document.querySelector('#qaTable tbody');
+      const newRow = document.createElement('tr');
+      newRow.innerHTML = '<td contenteditable="true"></td>'.repeat(15) + 
+                        '<td>' +
+                        '<button class="delete-btn" onclick="deleteRow(this)">Delete</button>' +
+                        '<button class="apply-btn" onclick="applyRow(this)">Apply</button>' +
+                        '</td>';
+      tableBody.appendChild(newRow);
+    }
+
+    function applyRow(button) {
+      event.stopPropagation();
+      button.classList.add('loading');
+      button.disabled = true;
+
+      const row = button.closest('tr');
+      const index = row.getAttribute('data-index'); // Index for existing rows
+      const data = Array.from(row.children).slice(0, 15).map(cell => cell.innerText);
+      const projectRef = db.collection('qaProjects').doc('Project Alpha');
+
+      const rowData = {
+        projectName: data[0], qaName: data[1], testingPhase: data[2],
+        totalBugs: data[3], functionalBugs: data[4], htmlBugs: data[5],
+        totalIssues: data[6], phaseStart: data[7], phaseEnd: data[8],
+        rejectReason: data[9], rejectDate: data[10], approved: data[11],
+        approvedDate: data[12], notApprovedReason: data[13], notApprovedDate: data[14],
+        timestamp: new Date()
+      };
+
+      projectRef.get().then(doc => {
+        if (doc.exists) {
+          const rows = doc.data().rows || [];
+          if (index !== null) {
+            // Update existing row
+            rows[parseInt(index)] = rowData;
+          } else {
+            // Add new row
+            rows.push(rowData);
+          }
+          console.log('Saving row to Firestore:', rowData); // Debug log
+          return projectRef.update({ rows });
+        } else {
+          console.log('Document does not exist, creating new one with row'); // Debug log
+          return projectRef.set({ rows: [rowData] });
+        }
+      }).then(() => {
+        button.classList.remove('loading');
+        button.disabled = false;
+        console.log('Row saved successfully'); // Debug log
+        loadDataFromFirestore(); // Refresh table and chart
+      }).catch(err => {
+        console.error('Error saving row to Firestore:', err.message); // Detailed error log
+        alert('Failed to save row to Firestore. Check the console for details.');
+        button.classList.remove('loading');
+        button.disabled = false;
+      });
+    }
+
+    function deleteRow(button) {
+      event.stopPropagation();
+      button.classList.add('loading');
+      button.disabled = true;
+
+      const row = button.closest('tr');
+      const index = row.getAttribute('data-index');
+      if (index === null) {
+        // New row, not yet saved to Firestore
+        row.remove();
+        button.classList.remove('loading');
+        button.disabled = false;
+        return;
+      }
+
+      const projectRef = db.collection('qaProjects').doc('Project Alpha');
+      projectRef.get().then(doc => {
+        if (!doc.exists) {
+          throw new Error('Document does not exist in Firestore');
+        }
+
+        const rows = doc.data().rows || [];
+        const rowIndex = parseInt(index);
+        if (rowIndex < 0 || rowIndex >= rows.length) {
+          throw new Error(`Invalid row index: ${rowIndex}. Rows length: ${rows.length}`);
+        }
+
+        rows.splice(rowIndex, 1); // Remove the row at the index
+        console.log('Deleting row at index:', rowIndex, 'New rows:', rows); // Debug log
+        return projectRef.update({ rows });
+      }).then(() => {
+        console.log('Row deleted successfully'); // Debug log
+        button.classList.remove('loading');
+        button.disabled = false;
+        loadDataFromFirestore(); // Refresh table and chart
+      }).catch(err => {
+        console.error('Error deleting row from Firestore:', err.message); // Detailed error log
+        alert('Failed to delete row from Firestore. Check the console for details.');
+        button.classList.remove('loading');
+        button.disabled = false;
+        loadDataFromFirestore();
+      });
+    }
+
+    function filterTable() {
+      const projectValue = document.getElementById('projectFilter').value.toLowerCase();
+      const qaValue = document.getElementById('qaFilter').value.toLowerCase();
+      document.querySelectorAll('#qaTable tbody tr').forEach(row => {
+        const project = row.cells[0].textContent.toLowerCase();
+        const qa = row.cells[1].textContent.toLowerCase();
+        row.style.display = (project.includes(projectValue) && qa.includes(qaValue)) ? '' : 'none';
+      });
+    }
+
+    function exportTableToExcel() {
+      const table = document.getElementById('qaTable');
+      const wb = XLSX.utils.table_to_book(table, { sheet: 'QA Projects' });
+      XLSX.writeFile(wb, 'QA_Project_Tracker.xlsx');
+    }
+
+    function updateChart(rows) {
+      const functionalBugs = rows.reduce((sum, row) => sum + (parseInt(row.functionalBugs) || 0), 0);
+      const htmlBugs = rows.reduce((sum, row) => sum + (parseInt(row.htmlBugs) || 0), 0);
+
+      const ctx = document.getElementById('bugChart').getContext('2d');
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['Project Alpha'],
+          datasets: [
+            { label: 'Functional Bugs', data: [functionalBugs], backgroundColor: '#007bff' },
+            { label: 'HTML Bugs', data: [htmlBugs], backgroundColor: '#ffc107' }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'top' },
+            title: { display: true, text: 'Bug Breakdown by Project' }
+          }
+        }
+      });
+    }
+
+    function showMilestones(projectName) {
+      const milestoneBox = document.getElementById('milestoneBox');
+      const milestoneList = document.getElementById('milestoneList');
+      milestoneList.innerHTML = '';
+
+      if (projectName === 'Project Alpha') {
+        const milestones = [
+          { phase: 'Project Start', start: '2025-03-25', end: '', bugs: 0, status: 'Started' },
+          { phase: 'UAT Execution', start: '2025-04-01', end: '2025-04-10', bugs: 15, status: 'Rejected on 2025-04-11' },
+          { phase: 'Fix & Review', start: '2025-04-11', end: '2025-04-14', bugs: 5, status: 'Approved on 2025-04-15' }
+        ];
+
+        milestones.forEach(ms => {
+          const div = document.createElement('div');
+          div.classList.add('milestone-entry');
+          div.innerHTML = `
+            <div><strong>Phase:</strong> ${ms.phase}</div>
+            <div><strong>Start Date:</strong> ${ms.start}</div>
+            <div><strong>End Date:</strong> ${ms.end || '—'}</div>
+            <div><strong>Bugs Reported:</strong> ${ms.bugs}</div>
+            <div><strong>Status:</strong> ${ms.status}</div>
+          `;
+          milestoneList.appendChild(div);
+        });
+
+        milestoneBox.style.display = 'block';
+      } else {
+        milestoneBox.style.display = 'none';
+      }
+    }
+
+    // Load data when the page loads
+    window.onload = function() {
+      console.log('Page loaded, initializing Firebase and loading data'); // Debug log
+      loadDataFromFirestore();
+    };
+  </script>
+</body>
+</html>
