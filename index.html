@@ -79,7 +79,7 @@
       margin-top: 40px;
       max-width: 100%;
     }
-    .milestone-box {
+    .milestone-box, .milestone-tab {
       margin-top: 30px;
       padding: 20px;
       background-color: #ffffff;
@@ -87,7 +87,7 @@
       border-radius: 10px;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     }
-    .milestone-box h3 {
+    .milestone-box h3, .milestone-tab h3 {
       margin-top: 0;
       color: #003366;
       font-size: 18px;
@@ -102,6 +102,17 @@
       border-radius: 6px;
     }
     .milestone-entry strong {
+      display: inline-block;
+      min-width: 140px;
+      color: #333;
+    }
+    .milestone-summary {
+      margin-bottom: 15px;
+      padding: 10px;
+      background: #e9ecef;
+      border-radius: 6px;
+    }
+    .milestone-summary strong {
       display: inline-block;
       min-width: 140px;
       color: #333;
@@ -223,6 +234,11 @@
       <div id="milestoneList"></div>
     </div>
 
+    <div class="milestone-tab" id="milestoneTab">
+      <h3>All Projects Milestone Overview</h3>
+      <div id="milestoneTabList"></div>
+    </div>
+
     <canvas id="bugChart" height="100"></canvas>
   </div>
 
@@ -260,20 +276,105 @@
     // Function to update the project filter dropdown
     function updateProjectFilter(rows) {
       const projectFilter = document.getElementById('projectFilter');
-      // Keep the default "Filter by Project" option
       projectFilter.innerHTML = '<option value="">Filter by Project</option>';
       
-      // Get unique project names
-      const projectNames = [...new Set(rows.map(row => row.projectName).filter(name => name))];
-      console.log('Unique project names for dropdown:', projectNames); // Debug log
-      
-      // Add each project name as an option
+      const allProjectNames = rows.map(row => row.projectName || 'undefined');
+      console.log('All project names (including undefined/empty):', allProjectNames);
+
+      const projectNames = [...new Set(rows
+        .map(row => row.projectName)
+        .filter(name => name && name.trim() !== ''))];
+      console.log('Unique project names for dropdown (after filtering):', projectNames);
+
+      if (projectNames.length === 0) {
+        console.log('No valid project names found to populate the dropdown.');
+      }
+
       projectNames.forEach(name => {
         const option = document.createElement('option');
         option.value = name;
         option.textContent = name;
         projectFilter.appendChild(option);
       });
+
+      const dropdownOptions = Array.from(projectFilter.options).map(opt => opt.value);
+      console.log('Final dropdown options:', dropdownOptions);
+    }
+
+    // Function to populate the Milestone Tab
+    function populateMilestoneTab(rows) {
+      const milestoneTabList = document.getElementById('milestoneTabList');
+      milestoneTabList.innerHTML = ''; // Clear existing content
+
+      // Group rows by projectName
+      const projects = {};
+      rows.forEach(row => {
+        const projectName = row.projectName || 'Unnamed Project';
+        if (!projects[projectName]) {
+          projects[projectName] = [];
+        }
+        projects[projectName].push(row);
+      });
+
+      console.log('Grouped projects for Milestone Tab:', projects);
+
+      // For each project, create a section
+      for (const projectName in projects) {
+        const projectRows = projects[projectName];
+
+        // Sort rows by phaseStart date to determine the order of phases
+        projectRows.sort((a, b) => {
+          const dateA = a.phaseStart ? new Date(a.phaseStart) : new Date(0);
+          const dateB = b.phaseStart ? new Date(b.phaseStart) : new Date(0);
+          return dateA - dateB;
+        });
+
+        // Calculate the start of the first phase and end of the last phase
+        const validStartDates = projectRows
+          .map(row => row.phaseStart)
+          .filter(date => date && !isNaN(new Date(date)))
+          .sort((a, b) => new Date(a) - new Date(b));
+        const validEndDates = projectRows
+          .map(row => row.phaseEnd)
+          .filter(date => date && !isNaN(new Date(date)))
+          .sort((a, b) => new Date(b) - new Date(a));
+
+        const projectStart = validStartDates.length > 0 ? validStartDates[0] : 'N/A';
+        const projectEnd = validEndDates.length > 0 ? validEndDates[0] : 'N/A';
+
+        // Create a project section
+        const projectDiv = document.createElement('div');
+        projectDiv.classList.add('milestone-box');
+        projectDiv.innerHTML = `
+          <h3>${projectName}</h3>
+          <div class="milestone-summary">
+            <div><strong>Project Start:</strong> ${projectStart}</div>
+            <div><strong>Project End:</strong> ${projectEnd}</div>
+          </div>
+        `;
+
+        // Add each phase as a milestone entry
+        projectRows.forEach(row => {
+          const phaseDiv = document.createElement('div');
+          phaseDiv.classList.add('milestone-entry');
+          phaseDiv.innerHTML = `
+            <div><strong>Phase:</strong> ${row.testingPhase || 'N/A'}</div>
+            <div><strong>Total Bugs:</strong> ${row.totalBugs || '0'}</div>
+            <div><strong>Start Date:</strong> ${row.phaseStart || 'N/A'}</div>
+            <div><strong>End Date:</strong> ${row.phaseEnd || 'N/A'}</div>
+            <div><strong>Rejected:</strong> ${row.rejectReason ? row.rejectReason + ' on ' + (row.rejectDate || 'N/A') : 'N/A'}</div>
+            <div><strong>Approved:</strong> ${row.approvedDate || 'N/A'}</div>
+          `;
+          projectDiv.appendChild(phaseDiv);
+        });
+
+        milestoneTabList.appendChild(projectDiv);
+      }
+
+      // If no projects, display a message
+      if (Object.keys(projects).length === 0) {
+        milestoneTabList.innerHTML = '<p>No project milestones to display.</p>';
+      }
     }
 
     // Load data from Firestore on page load
@@ -322,6 +423,8 @@
 
           // Update the project filter dropdown
           updateProjectFilter(rows);
+          // Populate the Milestone Tab
+          populateMilestoneTab(rows);
           // Update the chart with Firestore data
           updateChart(rows);
         } else {
@@ -330,11 +433,13 @@
             .then(() => {
               console.log('Initialized empty document in Firestore');
               updateProjectFilter([]); // Update dropdown with no projects
+              populateMilestoneTab([]); // Update Milestone Tab with no projects
               updateChart([]); // Update chart with empty data
             })
             .catch(err => {
               console.error('Error initializing document:', err.message);
               updateProjectFilter([]); // Fallback: empty dropdown
+              populateMilestoneTab([]); // Fallback: empty Milestone Tab
               updateChart([]); // Fallback: render chart with empty data
             });
         }
@@ -342,6 +447,7 @@
         console.error('Error loading data from Firestore:', err.message); // Detailed error log
         alert('Unable to load project data from Firestore. Please check your connection or try again later.');
         updateProjectFilter([]); // Fallback: empty dropdown
+        populateMilestoneTab([]); // Fallback: empty Milestone Tab
         updateChart([]); // Fallback: render chart with empty data
       });
     }
@@ -408,7 +514,7 @@
         alert('Row saved successfully!');
         button.classList.remove('loading');
         button.disabled = false;
-        loadDataFromFirestore(); // Refresh table, chart, and dropdown
+        loadDataFromFirestore(); // Refresh table, chart, dropdown, and Milestone Tab
       }).catch(err => {
         console.error('Error saving row to Firestore:', err.message); // Detailed error log
         alert('Failed to save the row. Please check your connection or try again later.');
