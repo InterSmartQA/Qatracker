@@ -208,6 +208,16 @@
       <input type="text" id="qaFilter" placeholder="Filter by QA Name" oninput="filterTable()">
       <input type="date" id="fromDateFilter" placeholder="From Date" onchange="filterTable()">
       <input type="date" id="toDateFilter" placeholder="To Date" onchange="filterTable()">
+      <select id="approvedFilter" onchange="filterTable()">
+        <option value="">Filter by Approved</option>
+        <option value="Yes">Yes</option>
+        <option value="No">No</option>
+      </select>
+      <select id="rejectedFilter" onchange="filterTable()">
+        <option value="">Filter by Rejected</option>
+        <option value="Yes">Has Reject Reason</option>
+        <option value="No">No Reject Reason</option>
+      </select>
       <button onclick="exportTableToExcel()">Export Table</button>
     </div>
 
@@ -559,7 +569,7 @@
         totalBugs: data[3], functionalBugs: data[4], htmlBugs: data[5],
         totalIssues: data[6], phaseStart: data[7], phaseEnd: data[8],
         rejectReason: data[9], rejectDate: data[10], approved: data[11],
-        approvedDate: data[12], notApprovedReason: data[13], notApprovedDate: data[14],
+        approvedDate: data[12], notApprovedReason: develop[13], notApprovedDate: data[14],
         timestamp: new Date()
       };
 
@@ -663,11 +673,15 @@
       const qaValue = document.getElementById('qaFilter').value.toLowerCase();
       const fromDate = document.getElementById('fromDateFilter').value;
       const toDate = document.getElementById('toDateFilter').value;
+      const approvedValue = document.getElementById('approvedFilter').value;
+      const rejectedValue = document.getElementById('rejectedFilter').value;
 
       document.querySelectorAll('#qaTable tbody tr').forEach(row => {
         const project = row.cells[0].textContent.toLowerCase();
         const qa = row.cells[1].textContent.toLowerCase();
         const phaseStart = row.cells[7].textContent; // Phase Start Date
+        const approved = row.cells[11].textContent; // Approved (Go Live)
+        const rejectReason = row.cells[9].textContent; // Rejected - Reason
 
         // Project and QA Name filter
         let matchesProjectAndQA = project.includes(projectValue) && qa.includes(qaValue);
@@ -687,7 +701,19 @@
           }
         }
 
-        row.style.display = (matchesProjectAndQA && matchesDateRange) ? '' : 'none';
+        // Approved filter
+        let matchesApproved = true;
+        if (approvedValue) {
+          matchesApproved = approvedValue === 'Yes' ? approved.toLowerCase() === 'yes' : approved.toLowerCase() !== 'yes';
+        }
+
+        // Rejected filter
+        let matchesRejected = true;
+        if (rejectedValue) {
+          matchesRejected = rejectedValue === 'Yes' ? rejectReason.trim() !== '' : rejectReason.trim() === '';
+        }
+
+        row.style.display = (matchesProjectAndQA && matchesDateRange && matchesApproved && matchesRejected) ? '' : 'none';
       });
     }
 
