@@ -184,7 +184,7 @@
     <div class="controls">
       <select id="projectFilter" onchange="filterTable()">
         <option value="">Filter by Project</option>
-        <option value="Project Alpha">Project Alpha</option>
+        <!-- Options will be populated dynamically -->
       </select>
       <input type="text" id="qaFilter" placeholder="Filter by QA Name" oninput="filterTable()">
       <button onclick="exportTableToExcel()">Export Table</button>
@@ -257,6 +257,25 @@
     // Global variable to hold the chart instance
     let bugChartInstance = null;
 
+    // Function to update the project filter dropdown
+    function updateProjectFilter(rows) {
+      const projectFilter = document.getElementById('projectFilter');
+      // Keep the default "Filter by Project" option
+      projectFilter.innerHTML = '<option value="">Filter by Project</option>';
+      
+      // Get unique project names
+      const projectNames = [...new Set(rows.map(row => row.projectName).filter(name => name))];
+      console.log('Unique project names for dropdown:', projectNames); // Debug log
+      
+      // Add each project name as an option
+      projectNames.forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        projectFilter.appendChild(option);
+      });
+    }
+
     // Load data from Firestore on page load
     function loadDataFromFirestore() {
       const tableBody = document.querySelector('#qaTable tbody');
@@ -271,9 +290,7 @@
           rows.forEach((row, index) => {
             const newRow = document.createElement('tr');
             newRow.setAttribute('data-index', index); // Store index for updates
-            // Add click event listener instead of inline onclick
             newRow.addEventListener('click', (event) => {
-              // Prevent triggering milestone display if clicking on buttons
               if (event.target.tagName !== 'BUTTON') {
                 console.log('Row clicked, projectName:', row.projectName); // Debug log
                 showMilestones(row.projectName || '');
@@ -303,6 +320,8 @@
             tableBody.appendChild(newRow);
           });
 
+          // Update the project filter dropdown
+          updateProjectFilter(rows);
           // Update the chart with Firestore data
           updateChart(rows);
         } else {
@@ -310,16 +329,19 @@
           projectRef.set({ rows: [] })
             .then(() => {
               console.log('Initialized empty document in Firestore');
+              updateProjectFilter([]); // Update dropdown with no projects
               updateChart([]); // Update chart with empty data
             })
             .catch(err => {
               console.error('Error initializing document:', err.message);
+              updateProjectFilter([]); // Fallback: empty dropdown
               updateChart([]); // Fallback: render chart with empty data
             });
         }
       }).catch(err => {
         console.error('Error loading data from Firestore:', err.message); // Detailed error log
-        alert('Failed to load data from Firestore. Check the console for details.');
+        alert('Unable to load project data from Firestore. Please check your connection or try again later.');
+        updateProjectFilter([]); // Fallback: empty dropdown
         updateChart([]); // Fallback: render chart with empty data
       });
     }
@@ -332,7 +354,6 @@
                         '<button class="delete-btn" onclick="deleteRow(this)">Delete</button>' +
                         '<button class="apply-btn" onclick="applyRow(this)">Apply</button>' +
                         '</td>';
-      // Add click event listener for new rows
       newRow.addEventListener('click', (event) => {
         if (event.target.tagName !== 'BUTTON') {
           const projectName = newRow.cells[0].innerText || '';
@@ -384,12 +405,13 @@
         return operation;
       }).then(() => {
         console.log('Row saved successfully to Firestore'); // Debug log
+        alert('Row saved successfully!');
         button.classList.remove('loading');
         button.disabled = false;
-        loadDataFromFirestore(); // Refresh table and chart
+        loadDataFromFirestore(); // Refresh table, chart, and dropdown
       }).catch(err => {
         console.error('Error saving row to Firestore:', err.message); // Detailed error log
-        alert('Failed to save row to Firestore. Check the console for details.');
+        alert('Failed to save the row. Please check your connection or try again later.');
         button.classList.remove('loading');
         button.disabled = false;
         loadDataFromFirestore();
@@ -407,6 +429,7 @@
         row.remove();
         button.classList.remove('loading');
         button.disabled = false;
+        alert('Row deleted successfully! (Not saved to Firestore yet)');
         return;
       }
 
@@ -427,12 +450,13 @@
         return projectRef.update({ rows });
       }).then(() => {
         console.log('Row deleted successfully'); // Debug log
+        alert('Row deleted successfully!');
         button.classList.remove('loading');
         button.disabled = false;
         loadDataFromFirestore();
       }).catch(err => {
         console.error('Error deleting row from Firestore:', err.message);
-        alert('Failed to delete row from Firestore. Check the console for details.');
+        alert('Failed to delete the row. Please check your connection or try again later.');
         button.classList.remove('loading');
         button.disabled = false;
         loadDataFromFirestore();
@@ -516,13 +540,13 @@
     }
 
     function showMilestones(projectName) {
-      console.log('showMilestones called with projectName:', projectName); // Debug log
+      console.log('showMilestones called with projectName:', projectName);
       const milestoneBox = document.getElementById('milestoneBox');
       const milestoneList = document.getElementById('milestoneList');
       milestoneList.innerHTML = '';
 
       if (projectName.trim().toLowerCase() === 'project alpha') {
-        console.log('Displaying milestones for Project Alpha'); // Debug log
+        console.log('Displaying milestones for Project Alpha');
         const milestones = [
           { phase: 'Project Start', start: '2025-03-25', end: '', bugs: 0, status: 'Started' },
           { phase: 'UAT Execution', start: '2025-04-01', end: '2025-04-10', bugs: 15, status: 'Rejected on 2025-04-11' },
@@ -544,7 +568,7 @@
 
         milestoneBox.style.display = 'block';
       } else {
-        console.log('Hiding milestones, projectName does not match "Project Alpha"'); // Debug log
+        console.log('Hiding milestones, projectName does not match "Project Alpha"');
         milestoneBox.style.display = 'none';
       }
     }
