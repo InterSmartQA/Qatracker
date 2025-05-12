@@ -71,7 +71,6 @@
       background-color: #e9ecef;
       color: #333;
     }
-    /* Style for Rejected - Reason column */
     th:nth-child(10), td:nth-child(10) {
       background-color: yellow;
       color: red;
@@ -83,7 +82,6 @@
       background-color: #f1f3f5;
       cursor: pointer;
     }
-    /* Ensure hover does not override Rejected - Reason column styling */
     tr:hover td:nth-child(10) {
       background-color: yellow;
       color: red;
@@ -242,7 +240,6 @@
     .pagination button:not(:disabled)[data-active="true"]:hover {
       background-color: #0056b3;
     }
-    /* Flatpickr custom styles */
     .flatpickr-input {
       width: 100%;
       box-sizing: border-box;
@@ -372,14 +369,38 @@
     let currentPage = 1;
     let datepickers = [];
 
+    // Sample data for testing
+    const sampleData = [
+      {
+        projectName: "Project Alpha",
+        qaName: "John Doe",
+        testingPhase: "Phase 1",
+        totalBugs: "10",
+        functionalBugs: "5",
+        htmlBugs: "3",
+        totalIssues: "8",
+        phaseStart: "2025-03-25",
+        phaseEnd: "2025-03-30",
+        rejectReason: "Critical bugs",
+        rejectDate: "2025-03-31",
+        approved: "No",
+        approvedDate: "",
+        notApprovedReason: "Pending fixes",
+        notApprovedDate: "2025-03-31",
+        timestamp: new Date()
+      }
+    ];
+
     // Initialize Flatpickr for filter date inputs
     document.addEventListener('DOMContentLoaded', () => {
       flatpickr('#fromDateFilter', {
         dateFormat: 'Y-m-d',
+        allowInput: false,
         onChange: () => { filterTable(); updateChartWithFilter(); }
       });
       flatpickr('#toDateFilter', {
         dateFormat: 'Y-m-d',
+        allowInput: false,
         onChange: () => { filterTable(); updateChartWithFilter(); }
       });
     });
@@ -441,7 +462,7 @@
       return diffDays >= 0 ? diffDays : 'N/A';
     }
 
-    // Function to populate the Milestone Tabs
+    // Function to populate the Milestone Tab
     function populateMilestoneTab(rows) {
       console.log('Populating milestone tab with rows:', rows);
       const milestoneTabList = document.getElementById('milestoneTabList');
@@ -464,7 +485,6 @@
           return dateA - dateB;
         });
 
-        // Get valid start and end dates
         const validStartDates = projectRows
           .map(row => row.phaseStart)
           .filter(date => date && !isNaN(new Date(date)))
@@ -474,7 +494,6 @@
           .filter(date => date && !isNaN(new Date(date)))
           .sort((a, b) => new Date(b) - new Date(a));
 
-        // Set project start as earliest phaseStart, end as latest phaseEnd
         const projectStart = validStartDates.length > 0 ? validStartDates[0] : 'N/A';
         const projectEnd = validEndDates.length > 0 ? validEndDates[validEndDates.length - 1] : 'N/A';
         const totalDays = calculateDaysBetween(projectStart, projectEnd);
@@ -613,43 +632,42 @@
       pagination.appendChild(nextButton);
     }
 
-    // Load data from Firestore
+    // Load data from Firestore with fallback
     function loadDataFromFirestore() {
       console.log('Loading data from Firestore');
       const projectRef = db.collection('qaProjects').doc('Project Alpha');
       projectRef.get().then(doc => {
         console.log('Firestore document retrieved:', doc.exists);
-        if (doc.exists) {
-          allRows = doc.data().rows || [];
-          console.log('Loaded rows:', allRows);
-          updateProjectFilter(allRows);
-          updateMilestoneProjectFilter(allRows);
-          populateMilestoneTab(allRows);
-          filterTable();
-          updateChartWithFilter();
+        if (doc.exists && doc.data().rows && doc.data().rows.length > 0) {
+          allRows = doc.data().rows;
+          console.log('Loaded rows from Firestore:', allRows);
         } else {
-          console.log('Document does not exist, initializing with empty rows');
-          projectRef.set({ rows: [] }).then(() => {
-            allRows = [];
-            updateProjectFilter([]);
-            updateMilestoneProjectFilter([]);
-            populateMilestoneTab([]);
-            filterTable();
-            updateChartWithFilter();
+          console.log('No data in Firestore, using sample data');
+          allRows = sampleData;
+          projectRef.set({ rows: sampleData }).then(() => {
+            console.log('Sample data saved to Firestore');
           }).catch(err => {
-            console.error('Error initializing document:', err.message);
-            document.getElementById('errorMessage').textContent = 'Error: Failed to initialize Firestore document.';
+            console.error('Error saving sample data:', err.message);
+            document.getElementById('errorMessage').textContent = 'Error: Failed to initialize Firestore with sample data.';
             document.getElementById('errorMessage').style.display = 'block';
           });
         }
+        console.log('allRows after load:', allRows);
+        updateProjectFilter(allRows);
+        updateMilestoneProjectFilter(allRows);
+        populateMilestoneTab(allRows);
+        filterTable();
+        updateChartWithFilter();
       }).catch(err => {
         console.error('Error loading data from Firestore:', err.message);
-        document.getElementById('errorMessage').textContent = 'Error: Unable to load project data. Please check your Firebase configuration or network connection.';
+        document.getElementById('errorMessage').textContent = `Error: Unable to load project data. ${err.message}`;
         document.getElementById('errorMessage').style.display = 'block';
-        allRows = [];
-        updateProjectFilter([]);
-        updateMilestoneProjectFilter([]);
-        populateMilestoneTab([]);
+        console.log('Using sample data due to Firestore error');
+        allRows = sampleData;
+        console.log('allRows after error fallback:', allRows);
+        updateProjectFilter(allRows);
+        updateMilestoneProjectFilter(allRows);
+        populateMilestoneTab(allRows);
         filterTable();
         updateChartWithFilter();
       });
@@ -671,7 +689,7 @@
         }
       });
       tableBody.appendChild(newRow);
-      editRow(newRow.querySelector('.edit-btn')); // Automatically enter edit mode
+      editRow(newRow.querySelector('.edit-btn'));
     }
 
     function editRow(button) {
@@ -680,7 +698,6 @@
       const row = button.closest('tr');
       const cells = Array.from(row.children).slice(0, 15);
 
-      // Destroy existing datepickers to prevent duplicates
       datepickers.forEach(dp => dp.destroy());
       datepickers = [];
 
@@ -688,7 +705,6 @@
         cell.setAttribute('contenteditable', 'true');
         cell.style.backgroundColor = '#f0f0f0';
 
-        // Add datepicker to date fields (indices: 7, 8, 10, 12, 14 for Phase Start, Phase End, Rejected Date, Approved Date, Not Approved Date)
         if ([7, 8, 10, 12, 14].includes(index)) {
           const input = document.createElement('input');
           input.type = 'text';
@@ -699,8 +715,9 @@
 
           const fp = flatpickr(input, {
             dateFormat: 'Y-m-d',
+            allowInput: false,
             onChange: (selectedDates, dateStr) => {
-              cell.innerText = dateStr; // Update cell content when date is selected
+              cell.innerText = dateStr;
             }
           });
           datepickers.push(fp);
@@ -720,7 +737,6 @@
       button.classList.add('loading');
       button.disabled = true;
 
-      // Destroy datepickers to clean up
       datepickers.forEach(dp => dp.destroy());
       datepickers = [];
 
@@ -855,9 +871,10 @@
         }
 
         return matchesProjectAndQA && matchesDateRange && matchesApproved && matchesRejected;
-        console.log('Filtered rows:', filteredRows);
-        renderTableRows(filteredRows);
       });
+
+      console.log('Filtered rows:', filteredRows);
+      renderTableRows(filteredRows);
     }
 
     function exportTableToExcel() {
