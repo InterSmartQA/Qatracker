@@ -9,11 +9,15 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <style>
+    * {
+      box-sizing: border-box;
+    }
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background-color: #f0f2f5;
       margin: 0;
       padding: 0;
+      font-size: 16px;
     }
     header {
       display: flex;
@@ -21,47 +25,54 @@
       background-color: #003366;
       padding: 10px 20px;
       color: white;
+      flex-wrap: wrap;
     }
     header img {
       height: 40px;
       margin-right: 15px;
     }
     header h1 {
-      font-size: 20px;
+      font-size: clamp(16px, 5vw, 20px);
       margin: 0;
+      flex: 1;
     }
     .container {
-      max-width: 1400px;
-      margin: 20px auto;
+      max-width: 100%;
+      margin: 20px;
       background: white;
-      padding: 30px;
+      padding: 20px;
       border-radius: 12px;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
     }
     .controls {
       display: flex;
       flex-wrap: wrap;
-      gap: 15px;
-      margin-bottom: 25px;
+      gap: 10px;
+      margin-bottom: 20px;
     }
     .controls select,
     .controls input,
     .controls button {
-      padding: 10px;
-      font-size: 15px;
+      padding: 8px;
+      font-size: clamp(14px, 3vw, 15px);
       border-radius: 8px;
       border: 1px solid #ccc;
-      min-width: 180px;
+      width: 100%;
+      max-width: 300px;
+    }
+    .table-wrapper {
+      overflow-x: auto;
+      margin-top: 20px;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 20px;
-      font-size: 14px;
+      font-size: clamp(12px, 2.5vw, 14px);
+      min-width: 600px;
     }
     th, td {
       border: 1px solid #ddd;
-      padding: 12px;
+      padding: 10px;
       text-align: left;
     }
     th {
@@ -77,7 +88,9 @@
     }
     canvas {
       margin-top: 40px;
+      width: 100% !important;
       max-width: 100%;
+      height: auto !important;
     }
     .milestone-box, .milestone-tab {
       margin-top: 30px;
@@ -92,7 +105,7 @@
     .milestone-box h3, .milestone-tab h3 {
       margin-top: 0;
       color: #003366;
-      font-size: 18px;
+      font-size: clamp(16px, 4vw, 18px);
       border-bottom: 1px solid #ddd;
       padding-bottom: 8px;
     }
@@ -102,10 +115,11 @@
       background: #f8f9fa;
       border-left: 4px solid #007bff;
       border-radius: 6px;
+      font-size: clamp(12px, 2.5vw, 14px);
     }
     .milestone-entry strong {
       display: inline-block;
-      min-width: 140px;
+      min-width: 120px;
       color: #333;
     }
     .milestone-summary {
@@ -116,7 +130,7 @@
     }
     .milestone-summary strong {
       display: inline-block;
-      min-width: 140px;
+      min-width: 120px;
       color: #333;
     }
     .add-row-btn {
@@ -127,6 +141,7 @@
       border: none;
       border-radius: 8px;
       cursor: pointer;
+      font-size: clamp(14px, 3vw, 16px);
     }
     .add-row-btn:hover {
       background-color: #0056b3;
@@ -139,7 +154,7 @@
       border-radius: 5px;
       margin-right: 5px;
       position: relative;
-      font-size: 16px;
+      font-size: clamp(14px, 3vw, 16px);
       width: 32px;
       height: 32px;
       display: inline-flex;
@@ -189,10 +204,12 @@
       color: red;
       margin: 10px 0;
       display: none;
+      font-size: clamp(12px, 2.5vw, 14px);
     }
     .pagination {
       margin-top: 20px;
       display: flex;
+      flex-wrap: wrap;
       justify-content: center;
       gap: 10px;
     }
@@ -202,6 +219,7 @@
       border-radius: 8px;
       background-color: #f8f9fa;
       cursor: pointer;
+      font-size: clamp(12px, 2.5vw, 14px);
     }
     .pagination button:hover {
       background-color: #e9ecef;
@@ -210,6 +228,78 @@
       background-color: #e9ecef;
       cursor: not-allowed;
       opacity: 0.5;
+    }
+
+    /* Mobile and Tablet Styles */
+    @media (max-width: 768px) {
+      .container {
+        margin: 10px;
+        padding: 15px;
+      }
+      header {
+        padding: 10px;
+      }
+      header img {
+        height: 30px;
+      }
+      .controls {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .controls select,
+      .controls input,
+      .controls button {
+        max-width: 100%;
+      }
+      .table-wrapper {
+        overflow-x: auto;
+      }
+      table {
+        min-width: 800px;
+      }
+      .milestone-box, .milestone-tab {
+        max-height: 300px;
+      }
+      .add-row-btn {
+        width: 100%;
+      }
+      .pagination {
+        gap: 5px;
+      }
+      .pagination button {
+        padding: 6px 12px;
+      }
+    }
+
+    /* Extra Small Devices */
+    @media (max-width: 480px) {
+      body {
+        font-size: 14px;
+      }
+      .container {
+        margin: 5px;
+        padding: 10px;
+      }
+      header h1 {
+        font-size: 16px;
+      }
+      .controls select,
+      .controls input,
+      .controls button {
+        font-size: 12px;
+        padding: 6px;
+      }
+      .edit-btn, .delete-btn, .save-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 14px;
+      }
+      .milestone-entry strong {
+        min-width: 100px;
+      }
+      .milestone-summary strong {
+        min-width: 100px;
+      }
     }
   </style>
 </head>
@@ -226,7 +316,6 @@
     <div class="controls">
       <select id="projectFilter" onchange="filterTable(); updateChartWithFilter()">
         <option value="">Filter by Project</option>
-        <!-- Options will be populated dynamically -->
       </select>
       <input type="text" id="qaFilter" placeholder="Filter by QA Name" oninput="filterTable(); updateChartWithFilter()">
       <input type="date" id="fromDateFilter" placeholder="From Date" onchange="filterTable(); updateChartWithFilter()">
@@ -244,35 +333,34 @@
       <button onclick="exportTableToExcel()">Export Table</button>
     </div>
 
-    <table id="qaTable">
-      <thead>
-        <tr>
-          <th>Project Name</th>
-          <th>QA Name</th>
-          <th>Testing Phase</th>
-          <th>Total Bugs</th>
-          <th>Functional Bugs</th>
-          <th>HTML Bugs</th>
-          <th>Total Issues</th>
-          <th>Phase Start Date</th>
-          <th>Phase End Date</th>
-          <th>Rejected - Reason</th>
-          <th>Rejected Date</th>
-          <th>Approved (Go Live)</th>
-          <th>Approved Date</th>
-          <th>Not Approved - Reason</th>
-          <th>Not Approved Date</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <!-- Rows will be populated dynamically from Firestore -->
-      </tbody>
-    </table>
-
-    <div class="pagination" id="pagination">
-      <!-- Pagination buttons will be added dynamically -->
+    <div class="table-wrapper">
+      <table id="qaTable">
+        <thead>
+          <tr>
+            <th>Project Name</th>
+            <th>QA Name</th>
+            <th>Testing Phase</th>
+            <th>Total Bugs</th>
+            <th>Functional Bugs</th>
+            <th>HTML Bugs</th>
+            <th>Total Issues</th>
+            <th>Phase Start Date</th>
+            <th>Phase End Date</th>
+            <th>Rejected - Reason</th>
+            <th>Rejected Date</th>
+            <th>Approved (Go Live)</th>
+            <th>Approved Date</th>
+            <th>Not Approved - Reason</th>
+            <th>Not Approved Date</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
     </div>
+
+    <div class="pagination" id="pagination"></div>
 
     <button class="add-row-btn" onclick="addNewRow()">+ Add New Row</button>
 
@@ -286,7 +374,6 @@
       <div class="controls">
         <select id="milestoneProjectFilter" onchange="populateMilestoneTabWithFilter()">
           <option value="">All Projects</option>
-          <!-- Options will be populated dynamically -->
         </select>
       </div>
       <div id="milestoneTabList"></div>
@@ -296,17 +383,15 @@
   </div>
 
   <script>
-    // Firebase Configuration
     const firebaseConfig = {
       apiKey: "AIzaSyAhl6jOgum2lRQe_M8mAodPFRtCUK5kYcY",
-      authDomain: "qa-project-tracker.firebaseapp.com",
+      authDomain joke: "qa-project-tracker.firebaseapp.com",
       projectId: "qa-project-tracker",
       storageBucket: "qa-project-tracker.appspot.com",
       messagingSenderId: "876542181974",
       appId: "1:876542181974:web:346847b1244e2395ec71f7"
     };
 
-    // Check if the app is running on a server
     if (window.location.protocol === 'file:') {
       document.getElementById('errorMessage').style.display = 'block';
       console.error('This app must be run on a web server (e.g., localhost) to connect to Firebase.');
@@ -319,17 +404,14 @@
       throw new Error('App must be run on a server to connect to Firebase.');
     }
 
-    // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // Global variables
     let bugChartInstance = null;
     let allRows = [];
     const rowsPerPage = 15;
     let currentPage = 1;
 
-    // Function to update the project filter dropdown
     function updateProjectFilter(rows) {
       const projectFilter = document.getElementById('projectFilter');
       projectFilter.innerHTML = '<option value="">Filter by Project</option>';
@@ -337,7 +419,6 @@
       const projectNames = [...new Set(rows
         .map(row => row.projectName)
         .filter(name => name && name.trim() !== ''))];
-      console.log('Unique project names for dropdown:', projectNames);
 
       projectNames.forEach(name => {
         const option = document.createElement('option');
@@ -347,7 +428,6 @@
       });
     }
 
-    // Function to update the milestone project filter dropdown
     function updateMilestoneProjectFilter(rows) {
       const milestoneProjectFilter = document.getElementById('milestoneProjectFilter');
       milestoneProjectFilter.innerHTML = '<option value="">All Projects</option>';
@@ -355,7 +435,6 @@
       const projectNames = [...new Set(rows
         .map(row => row.projectName)
         .filter(name => name && name.trim() !== ''))];
-      console.log('Unique project names for milestone dropdown:', projectNames);
 
       projectNames.forEach(name => {
         const option = document.createElement('option');
@@ -365,14 +444,12 @@
       });
     }
 
-    // Function to populate the Milestone Tab with filter
     function populateMilestoneTabWithFilter() {
       const selectedProject = document.getElementById('milestoneProjectFilter').value;
       const rows = selectedProject ? allRows.filter(row => row.projectName === selectedProject) : allRows;
       populateMilestoneTab(rows);
     }
 
-    // Function to populate the Milestone Tab
     function populateMilestoneTab(rows) {
       const milestoneTabList = document.getElementById('milestoneTabList');
       milestoneTabList.innerHTML = '';
@@ -438,7 +515,6 @@
       }
     }
 
-    // Function to render table rows with pagination
     function renderTableRows(rows) {
       const tableBody = document.querySelector('#qaTable tbody');
       tableBody.innerHTML = '';
@@ -483,7 +559,6 @@
       updatePagination(rows.length);
     }
 
-    // Function to update pagination controls
     function updatePagination(totalRows) {
       const pagination = document.getElementById('pagination');
       pagination.innerHTML = '';
@@ -523,7 +598,6 @@
       pagination.appendChild(nextButton);
     }
 
-    // Load data from Firestore
     function loadDataFromFirestore() {
       const projectRef = db.collection('qaProjects').doc('Project Alpha');
       projectRef.get().then(doc => {
@@ -683,6 +757,7 @@
       }).catch(err => {
         console.error('Error deleting row:', err.message);
         alert('Failed to delete the row. Please try again later.');
+        button.classList.remove('loading');
         button.disabled = false;
         loadDataFromFirestore();
       });
@@ -820,6 +895,7 @@
           },
           options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: {
               legend: { position: 'top' },
               title: { display: true, text: `Bug Breakdown for ${projectName}` }
