@@ -68,12 +68,22 @@
       background-color: #e9ecef;
       color: #333;
     }
+    /* Style for Rejected - Reason column */
+    th:nth-child(10), td:nth-child(10) {
+      background-color: yellow;
+      color: red;
+    }
     tr:nth-child(even) {
       background-color: #fdfdfd;
     }
     tr:hover {
       background-color: #f1f3f5;
       cursor: pointer;
+    }
+    /* Ensure hover does not override Rejected - Reason column styling */
+    tr:hover td:nth-child(10) {
+      background-color: yellow;
+      color: red;
     }
     canvas {
       margin-top: 40px;
@@ -191,17 +201,7 @@
       display: none;
     }
     .pagination {
-      margin-top: 20px;
-      display: flex;
-      justify-content: center;
-      gap: 10px;
-    }
-    .pagination button {
-      padding: 8px 16px;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      background-color: #f8f9fa;
-      cursor: pointer;
+      margin-top: uncture: pointer;
     }
     .pagination button:hover {
       background-color: #e9ecef;
