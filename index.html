@@ -129,29 +129,37 @@
     .add-row-btn:hover {
       background-color: #0056b3;
     }
-    .delete-btn {
-      background-color: red;
+    .edit-btn, .delete-btn, .save-btn {
       color: white;
       border: none;
-      padding: 5px 10px;
+      padding: 8px;
       cursor: pointer;
       border-radius: 5px;
       margin-right: 5px;
       position: relative;
+      font-size: 16px;
+      width: 32px;
+      height: 32px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .edit-btn {
+      background-color: #007bff;
+    }
+    .edit-btn:hover {
+      background-color: #0056b3;
+    }
+    .delete-btn {
+      background-color: red;
     }
     .delete-btn:hover {
       background-color: darkred;
     }
-    .apply-btn {
+    .save-btn {
       background-color: green;
-      color: white;
-      border: none;
-      padding: 5px 10px;
-      cursor: pointer;
-      border-radius: 5px;
-      position: relative;
     }
-    .apply-btn:hover {
+    .save-btn:hover {
       background-color: darkgreen;
     }
     .loading::after {
@@ -398,24 +406,24 @@
               }
             });
             newRow.innerHTML = `
-              <td contenteditable="true">${row.projectName || ''}</td>
-              <td contenteditable="true">${row.qaName || ''}</td>
-              <td contenteditable="true">${row.testingPhase || ''}</td>
-              <td contenteditable="true">${row.totalBugs || ''}</td>
-              <td contenteditable="true">${row.functionalBugs || ''}</td>
-              <td contenteditable="true">${row.htmlBugs || ''}</td>
-              <td contenteditable="true">${row.totalIssues || ''}</td>
-              <td contenteditable="true">${row.phaseStart || ''}</td>
-              <td contenteditable="true">${row.phaseEnd || ''}</td>
-              <td contenteditable="true">${row.rejectReason || ''}</td>
-              <td contenteditable="true">${row.rejectDate || ''}</td>
-              <td contenteditable="true">${row.approved || ''}</td>
-              <td contenteditable="true">${row.approvedDate || ''}</td>
-              <td contenteditable="true">${row.notApprovedReason || ''}</td>
-              <td contenteditable="true">${row.notApprovedDate || ''}</td>
+              <td>${row.projectName || ''}</td>
+              <td>${row.qaName || ''}</td>
+              <td>${row.testingPhase || ''}</td>
+              <td>${row.totalBugs || ''}</td>
+              <td>${row.functionalBugs || ''}</td>
+              <td>${row.htmlBugs || ''}</td>
+              <td>${row.totalIssues || ''}</td>
+              <td>${row.phaseStart || ''}</td>
+              <td>${row.phaseEnd || ''}</td>
+              <td>${row.rejectReason || ''}</td>
+              <td>${row.rejectDate || ''}</td>
+              <td>${row.approved || ''}</td>
+              <td>${row.approvedDate || ''}</td>
+              <td>${row.notApprovedReason || ''}</td>
+              <td>${row.notApprovedDate || ''}</td>
               <td>
-                <button class="delete-btn" onclick="deleteRow(this)">Delete</button>
-                <button class="apply-btn" onclick="applyRow(this)">Apply</button>
+                <button class="edit-btn" onclick="editRow(this)">✏️</button>
+                <button class="delete-btn" onclick="deleteRow(this)">🗑️</button>
               </td>
             `;
             tableBody.appendChild(newRow);
@@ -455,10 +463,10 @@
     function addNewRow() {
       const tableBody = document.querySelector('#qaTable tbody');
       const newRow = document.createElement('tr');
-      newRow.innerHTML = '<td contenteditable="true"></td>'.repeat(15) + 
+      newRow.innerHTML = '<td></td>'.repeat(15) + 
                         '<td>' +
-                        '<button class="delete-btn" onclick="deleteRow(this)">Delete</button>' +
-                        '<button class="apply-btn" onclick="applyRow(this)">Apply</button>' +
+                        '<button class="edit-btn" onclick="editRow(this)">✏️</button>' +
+                        '<button class="delete-btn" onclick="deleteRow(this)">🗑️</button>' +
                         '</td>';
       newRow.addEventListener('click', (event) => {
         if (event.target.tagName !== 'BUTTON') {
@@ -470,7 +478,26 @@
       tableBody.appendChild(newRow);
     }
 
-    function applyRow(button) {
+    function editRow(button) {
+      event.stopPropagation();
+      const row = button.closest('tr');
+      const cells = Array.from(row.children).slice(0, 15);
+
+      // Make cells editable
+      cells.forEach(cell => {
+        cell.setAttribute('contenteditable', 'true');
+        cell.style.backgroundColor = '#f0f0f0'; // Visual cue for editing
+      });
+
+      // Replace Edit button with Save button
+      const actionsCell = row.children[15];
+      actionsCell.innerHTML = `
+        <button class="save-btn" onclick="saveRow(this)">✅</button>
+        <button class="delete-btn" onclick="deleteRow(this)">🗑️</button>
+      `;
+    }
+
+    function saveRow(button) {
       event.stopPropagation();
       button.classList.add('loading');
       button.disabled = true;
@@ -514,6 +541,21 @@
         alert('Row saved successfully!');
         button.classList.remove('loading');
         button.disabled = false;
+
+        // Make cells non-editable again
+        const cells = Array.from(row.children).slice(0, 15);
+        cells.forEach(cell => {
+          cell.removeAttribute('contenteditable');
+          cell.style.backgroundColor = ''; // Reset background
+        });
+
+        // Replace Save button with Edit button
+        const actionsCell = row.children[15];
+        actionsCell.innerHTML = `
+          <button class="edit-btn" onclick="editRow(this)">✏️</button>
+          <button class="delete-btn" onclick="deleteRow(this)">🗑️</button>
+        `;
+
         loadDataFromFirestore(); // Refresh table, chart, dropdown, and Milestone Tab
       }).catch(err => {
         console.error('Error saving row to Firestore:', err.message); // Detailed error log
@@ -617,7 +659,7 @@
             ]
           },
           options: {
-            responsive: true,
+            responsive: true;
             plugins: {
               legend: { position: 'top' },
               title: { display: true, text: 'Bug Breakdown by Project' }
