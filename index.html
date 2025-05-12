@@ -262,6 +262,8 @@
           <th>Approved Date</th>
           <th>Not Approved - Reason</th>
           <th>Not Approved Date</th>
+          <th>Tracker Link</th>
+          <th>PC Name</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -403,8 +405,8 @@
           .filter(date => date && !isNaN(new Date(date)))
           .sort((a, b) => new Date(b) - new Date(a));
 
-        const projectStart = validStartDates.length > 0 ? validStartDates[0] : 'N/A';
-        const projectEnd = validEndDates.length > 0 ? validEndDates[0] : 'N/A';
+        const projectStart = validStartDates.length > 0 ? validStartDates[0] : '';
+        const projectEnd = validEndDates.length > 0 ? validEndDates[0] : '';
 
         const projectDiv = document.createElement('div');
         projectDiv.classList.add('milestone-box');
@@ -420,12 +422,12 @@
           const phaseDiv = document.createElement('div');
           phaseDiv.classList.add('milestone-entry');
           phaseDiv.innerHTML = `
-            <div><strong>Phase:</strong> ${row.testingPhase || 'N/A'}</div>
+            <div><strong>Phase:</strong> ${row.testingPhase || ''}</div>
             <div><strong>Total Bugs:</strong> ${row.totalBugs || '0'}</div>
-            <div><strong>Start Date:</strong> ${row.phaseStart || 'N/A'}</div>
-            <div><strong>End Date:</strong> ${row.phaseEnd || 'N/A'}</div>
-            <div><strong>Rejected:</strong> ${row.rejectReason ? row.rejectReason + ' on ' + (row.rejectDate || 'N/A') : 'N/A'}</div>
-            <div><strong>Approved:</strong> ${row.approvedDate || 'N/A'}</div>
+            <div><strong>Start Date:</strong> ${row.phaseStart || ''}</div>
+            <div><strong>End Date:</strong> ${row.phaseEnd || ''}</div>
+            <div><strong>Rejected:</strong> ${row.rejectReason ? row.rejectReason + ' on ' + (row.rejectDate || '') : ''}</div>
+            <div><strong>Approved:</strong> ${row.approvedDate || ''}</div>
           `;
           projectDiv.appendChild(phaseDiv);
         });
@@ -472,6 +474,8 @@
           <td>${row.approvedDate || ''}</td>
           <td>${row.notApprovedReason || ''}</td>
           <td>${row.notApprovedDate || ''}</td>
+          <td>${row.trackerLink || ''}</td>
+          <td>${row.pcName || ''}</td>
           <td>
             <button class="edit-btn" onclick="editRow(this)">✏️</button>
             <button class="delete-btn" onclick="deleteRow(this)">🗑️</button>
@@ -567,7 +571,7 @@
     function addNewRow() {
       const tableBody = document.querySelector('#qaTable tbody');
       const newRow = document.createElement('tr');
-      newRow.innerHTML = '<td></td>'.repeat(15) + 
+      newRow.innerHTML = '<td></td>'.repeat(17) + 
                         '<td>' +
                         '<button class="edit-btn" onclick="editRow(this)">✏️</button>' +
                         '<button class="delete-btn" onclick="deleteRow(this)">🗑️</button>' +
@@ -584,14 +588,14 @@
     function editRow(button) {
       event.stopPropagation();
       const row = button.closest('tr');
-      const cells = Array.from(row.children).slice(0, 15);
+      const cells = Array.from(row.children).slice(0, 17);
 
       cells.forEach(cell => {
         cell.setAttribute('contenteditable', 'true');
         cell.style.backgroundColor = '#f0f0f0';
       });
 
-      const actionsCell = row.children[15];
+      const actionsCell = row.children[17];
       actionsCell.innerHTML = `
         <button class="save-btn" onclick="saveRow(this)">✅</button>
         <button class="delete-btn" onclick="deleteRow(this)">🗑️</button>
@@ -605,7 +609,7 @@
 
       const row = button.closest('tr');
       const index = row.getAttribute('data-index');
-      const data = Array.from(row.children).slice(0, 15).map(cell => cell.innerText);
+      const data = Array.from(row.children).slice(0, 17).map(cell => cell.innerText);
       const projectRef = db.collection('qaProjects').doc('Project Alpha');
 
       const rowData = {
@@ -614,6 +618,7 @@
         totalIssues: data[6], phaseStart: data[7], phaseEnd: data[8],
         rejectReason: data[9], rejectDate: data[10], approved: data[11],
         approvedDate: data[12], notApprovedReason: data[13], notApprovedDate: data[14],
+        trackerLink: data[15], pcName: data[16],
         timestamp: new Date()
       };
 
@@ -630,13 +635,13 @@
         button.classList.remove('loading');
         button.disabled = false;
 
-        const cells = Array.from(row.children).slice(0, 15);
+        const cells = Array.from(row.children).slice(0, 17);
         cells.forEach(cell => {
           cell.removeAttribute('contenteditable');
           cell.style.backgroundColor = '';
         });
 
-        const actionsCell = row.children[15];
+        const actionsCell = row.children[17];
         actionsCell.innerHTML = `
           <button class="edit-btn" onclick="editRow(this)">✏️</button>
           <button class="delete-btn" onclick="deleteRow(this)">🗑️</button>
@@ -864,7 +869,7 @@
           div.innerHTML = `
             <div><strong>Phase:</strong> ${ms.phase}</div>
             <div><strong>Start Date:</strong> ${ms.start}</div>
-            <div><strong>End Date:</strong> ${ms.end || '—'}</div>
+            <div><strong>End Date:</strong> ${ms.end || ''}</div>
             <div><strong>Bugs Reported:</strong> ${ms.bugs}</div>
             <div><strong>Status:</strong> ${ms.status}</div>
           `;
