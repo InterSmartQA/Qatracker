@@ -8,6 +8,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <!-- Flatpickr CSS and JS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <style>
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -239,6 +242,11 @@
     .pagination button:not(:disabled)[data-active="true"]:hover {
       background-color: #0056b3;
     }
+    /* Flatpickr custom styles */
+    .flatpickr-input {
+      width: 100%;
+      box-sizing: border-box;
+    }
   </style>
 </head>
 <body>
@@ -256,8 +264,8 @@
         <option value="">Filter by Project</option>
       </select>
       <input type="text" id="qaFilter" placeholder="Filter by QA Name" oninput="filterTable(); updateChartWithFilter()">
-      <input type="date" id="fromDateFilter" placeholder="From Date" onchange="filterTable(); updateChartWithFilter()">
-      <input type="date" id="toDateFilter" placeholder="To Date" onchange="filterTable(); updateChartWithFilter()">
+      <input type="text" id="fromDateFilter" placeholder="From Date" readonly>
+      <input type="text" id="toDateFilter" placeholder="To Date" readonly>
       <select id="approvedFilter" onchange="filterTable(); updateChartWithFilter()">
         <option value="">Filter by Approved</option>
         <option value="Yes">Yes</option>
@@ -362,6 +370,19 @@
     let allRows = [];
     const rowsPerPage = 15;
     let currentPage = 1;
+    let datepickers = [];
+
+    // Initialize Flatpickr for filter date inputs
+    document.addEventListener('DOMContentLoaded', () => {
+      flatpickr('#fromDateFilter', {
+        dateFormat: 'Y-m-d',
+        onChange: () => { filterTable(); updateChartWithFilter(); }
+      });
+      flatpickr('#toDateFilter', {
+        dateFormat: 'Y-m-d',
+        onChange: () => { filterTable(); updateChartWithFilter(); }
+      });
+    });
 
     // Function to update the project filter dropdown
     function updateProjectFilter(rows) {
@@ -420,7 +441,7 @@
       return diffDays >= 0 ? diffDays : 'N/A';
     }
 
-    // Function to populate the Milestone Tab
+    // Function to populate the Milestone Tabs
     function populateMilestoneTab(rows) {
       console.log('Populating milestone tab with rows:', rows);
       const milestoneTabList = document.getElementById('milestoneTabList');
@@ -650,6 +671,7 @@
         }
       });
       tableBody.appendChild(newRow);
+      editRow(newRow.querySelector('.edit-btn')); // Automatically enter edit mode
     }
 
     function editRow(button) {
@@ -658,9 +680,31 @@
       const row = button.closest('tr');
       const cells = Array.from(row.children).slice(0, 15);
 
-      cells.forEach(cell => {
+      // Destroy existing datepickers to prevent duplicates
+      datepickers.forEach(dp => dp.destroy());
+      datepickers = [];
+
+      cells.forEach((cell, index) => {
         cell.setAttribute('contenteditable', 'true');
         cell.style.backgroundColor = '#f0f0f0';
+
+        // Add datepicker to date fields (indices: 7, 8, 10, 12, 14 for Phase Start, Phase End, Rejected Date, Approved Date, Not Approved Date)
+        if ([7, 8, 10, 12, 14].includes(index)) {
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.className = 'flatpickr-input';
+          input.value = cell.innerText;
+          cell.innerHTML = '';
+          cell.appendChild(input);
+
+          const fp = flatpickr(input, {
+            dateFormat: 'Y-m-d',
+            onChange: (selectedDates, dateStr) => {
+              cell.innerText = dateStr; // Update cell content when date is selected
+            }
+          });
+          datepickers.push(fp);
+        }
       });
 
       const actionsCell = row.children[15];
@@ -675,6 +719,10 @@
       event.stopPropagation();
       button.classList.add('loading');
       button.disabled = true;
+
+      // Destroy datepickers to clean up
+      datepickers.forEach(dp => dp.destroy());
+      datepickers = [];
 
       const row = button.closest('tr');
       const index = row.getAttribute('data-index');
@@ -807,10 +855,9 @@
         }
 
         return matchesProjectAndQA && matchesDateRange && matchesApproved && matchesRejected;
+        console.log('Filtered rows:', filteredRows);
+        renderTableRows(filteredRows);
       });
-
-      console.log('Filtered rows:', filteredRows);
-      renderTableRows(filteredRows);
     }
 
     function exportTableToExcel() {
