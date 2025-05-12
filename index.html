@@ -253,6 +253,9 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
+    // Global variable to hold the chart instance
+    let bugChartInstance = null;
+
     // Load data from Firestore on page load
     function loadDataFromFirestore() {
       const tableBody = document.querySelector('#qaTable tbody');
@@ -298,12 +301,16 @@
           console.log('Document does not exist, creating new one'); // Debug log
           // If the document doesn't exist, create it with an empty rows array
           projectRef.set({ rows: [] })
-            .then(() => console.log('Initialized empty document in Firestore'))
+            .then(() => {
+              console.log('Initialized empty document in Firestore');
+              updateChart([]); // Update chart with empty data
+            })
             .catch(err => console.error('Error initializing document:', err.message));
         }
       }).catch(err => {
         console.error('Error loading data from Firestore:', err.message); // Detailed error log
         alert('Failed to load data from Firestore. Check the console for details.');
+        updateChart([]); // Fallback: render chart with empty data
       });
     }
 
@@ -427,27 +434,66 @@
     }
 
     function updateChart(rows) {
-      const functionalBugs = rows.reduce((sum, row) => sum + (parseInt(row.functionalBugs) || 0), 0);
-      const htmlBugs = rows.reduce((sum, row) => sum + (parseInt(row.htmlBugs) || 0), 0);
+      // Log the rows to debug
+      console.log('Updating chart with rows:', rows);
+
+      // Calculate bug counts, default to 0 if parsing fails
+      const functionalBugs = rows.reduce((sum, row) => {
+        const value = parseInt(row.functionalBugs);
+        return sum + (isNaN(value) ? 0 : value);
+      }, 0);
+      const htmlBugs = rows.reduce((sum, row) => {
+        const value = parseInt(row.htmlBugs);
+        return sum + (isNaN(value) ? 0 : value);
+      }, 0);
+
+      console.log('Functional Bugs:', functionalBugs, 'HTML Bugs:', htmlBugs); // Debug log
 
       const ctx = document.getElementById('bugChart').getContext('2d');
-      new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: ['Project Alpha'],
-          datasets: [
-            { label: 'Functional Bugs', data: [functionalBugs], backgroundColor: '#007bff' },
-            { label: 'HTML Bugs', data: [htmlBugs], backgroundColor: '#ffc107' }
-          ]
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: { position: 'top' },
-            title: { display: true, text: 'Bug Breakdown by Project' }
+
+      // Destroy the existing chart if it exists
+      if (bugChartInstance) {
+        bugChartInstance.destroy();
+        bugChartInstance = null;
+      }
+
+      try {
+        bugChartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: ['Project Alpha'],
+            datasets: [
+              { label: 'Functional Bugs', data: [functionalBugs], backgroundColor: '#007bff' },
+              { label: 'HTML Bugs', data: [htmlBugs], backgroundColor: '#ffc107' }
+            ]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: 'top' },
+              title: { display: true, text: 'Bug Breakdown by Project' }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                title: {
+                  display: true,
+                  text: 'Number of Bugs'
+                }
+              },
+              x: {
+                title: {
+                  display: true,
+                  text: 'Project'
+                }
+              }
+            }
           }
-        }
-      });
+        });
+        console.log('Chart rendered successfully');
+      } catch (err) {
+        console.error('Error rendering chart:', err.message);
+      }
     }
 
     function showMilestones(projectName) {
