@@ -254,7 +254,6 @@
     <div class="controls">
       <select id="projectFilter" onchange="filterTable(); updateChartWithFilter()">
         <option value="">Filter by Project</option>
-        <!-- Options will be populated dynamically -->
       </select>
       <input type="text" id="qaFilter" placeholder="Filter by QA Name" oninput="filterTable(); updateChartWithFilter()">
       <input type="date" id="fromDateFilter" placeholder="From Date" onchange="filterTable(); updateChartWithFilter()">
@@ -314,7 +313,6 @@
       <div class="controls">
         <select id="milestoneProjectFilter" onchange="populateMilestoneTabWithFilter()">
           <option value="">All Projects</option>
-          <!-- Options will be populated dynamically -->
         </select>
       </div>
       <div id="milestoneTabList"></div>
@@ -348,7 +346,15 @@
     }
 
     // Initialize Firebase
-    firebase.initializeApp(firebaseConfig);
+    try {
+      firebase.initializeApp(firebaseConfig);
+      console.log('Firebase initialized successfully');
+    } catch (err) {
+      console.error('Firebase initialization failed:', err.message);
+      document.getElementById('errorMessage').textContent = 'Error: Failed to connect to Firebase. Please check your configuration.';
+      document.getElementById('errorMessage').style.display = 'block';
+      throw err;
+    }
     const db = firebase.firestore();
 
     // Global variables
@@ -359,6 +365,7 @@
 
     // Function to update the project filter dropdown
     function updateProjectFilter(rows) {
+      console.log('Updating project filter with rows:', rows);
       const projectFilter = document.getElementById('projectFilter');
       projectFilter.innerHTML = '<option value="">Filter by Project</option>';
       
@@ -377,6 +384,7 @@
 
     // Function to update the milestone project filter dropdown
     function updateMilestoneProjectFilter(rows) {
+      console.log('Updating milestone project filter with rows:', rows);
       const milestoneProjectFilter = document.getElementById('milestoneProjectFilter');
       milestoneProjectFilter.innerHTML = '<option value="">All Projects</option>';
       
@@ -395,6 +403,7 @@
 
     // Function to populate the Milestone Tab with filter
     function populateMilestoneTabWithFilter() {
+      console.log('Populating milestone tab with filter');
       const selectedProject = document.getElementById('milestoneProjectFilter').value;
       const rows = selectedProject ? allRows.filter(row => row.projectName === selectedProject) : allRows;
       populateMilestoneTab(rows);
@@ -413,6 +422,7 @@
 
     // Function to populate the Milestone Tab
     function populateMilestoneTab(rows) {
+      console.log('Populating milestone tab with rows:', rows);
       const milestoneTabList = document.getElementById('milestoneTabList');
       milestoneTabList.innerHTML = '';
 
@@ -485,6 +495,7 @@
 
     // Function to render table rows with pagination
     function renderTableRows(rows) {
+      console.log('Rendering table rows:', rows);
       const tableBody = document.querySelector('#qaTable tbody');
       tableBody.innerHTML = '';
 
@@ -492,47 +503,57 @@
       const end = start + rowsPerPage;
       const paginatedRows = rows.slice(start, end);
 
-      paginatedRows.forEach((row, index) => {
-        const globalIndex = start + index;
-        const newRow = document.createElement('tr');
-        newRow.setAttribute('data-index', globalIndex);
-        newRow.addEventListener('click', (event) => {
-          if (event.target.tagName !== 'BUTTON') {
-            showMilestones(row.projectName || '');
-          }
+      if (paginatedRows.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="16">No data available</td></tr>';
+      } else {
+        paginatedRows.forEach((row, index) => {
+          const globalIndex = start + index;
+          const newRow = document.createElement('tr');
+          newRow.setAttribute('data-index', globalIndex);
+          newRow.addEventListener('click', (event) => {
+            if (event.target.tagName !== 'BUTTON') {
+              showMilestones(row.projectName || '');
+            }
+          });
+          newRow.innerHTML = `
+            <td>${row.projectName || ''}</td>
+            <td>${row.qaName || ''}</td>
+            <td>${row.testingPhase || ''}</td>
+            <td>${row.totalBugs || ''}</td>
+            <td>${row.functionalBugs || ''}</td>
+            <td>${row.htmlBugs || ''}</td>
+            <td>${row.totalIssues || ''}</td>
+            <td>${row.phaseStart || ''}</td>
+            <td>${row.phaseEnd || ''}</td>
+            <td>${row.rejectReason || ''}</td>
+            <td>${row.rejectDate || ''}</td>
+            <td>${row.approved || ''}</td>
+            <td>${row.approvedDate || ''}</td>
+            <td>${row.notApprovedReason || ''}</td>
+            <td>${row.notApprovedDate || ''}</td>
+            <td>
+              <button class="edit-btn" onclick="editRow(this)">✏️</button>
+              <button class="delete-btn" onclick="deleteRow(this)">🗑️</button>
+            </td>
+          `;
+          tableBody.appendChild(newRow);
         });
-        newRow.innerHTML = `
-          <td>${row.projectName || ''}</td>
-          <td>${row.qaName || ''}</td>
-          <td>${row.testingPhase || ''}</td>
-          <td>${row.totalBugs || ''}</td>
-          <td>${row.functionalBugs || ''}</td>
-          <td>${row.htmlBugs || ''}</td>
-          <td>${row.totalIssues || ''}</td>
-          <td>${row.phaseStart || ''}</td>
-          <td>${row.phaseEnd || ''}</td>
-          <td>${row.rejectReason || ''}</td>
-          <td>${row.rejectDate || ''}</td>
-          <td>${row.approved || ''}</td>
-          <td>${row.approvedDate || ''}</td>
-          <td>${row.notApprovedReason || ''}</td>
-          <td>${row.notApprovedDate || ''}</td>
-          <td>
-            <button class="edit-btn" onclick="editRow(this)">✏️</button>
-            <button class="delete-btn" onclick="deleteRow(this)">🗑️</button>
-          </td>
-        `;
-        tableBody.appendChild(newRow);
-      });
+      }
 
       updatePagination(rows.length);
     }
 
     // Function to update pagination controls
     function updatePagination(totalRows) {
+      console.log('Updating pagination with total rows:', totalRows);
       const pagination = document.getElementById('pagination');
       pagination.innerHTML = '';
       const totalPages = Math.ceil(totalRows / rowsPerPage);
+
+      if (totalRows === 0) {
+        pagination.innerHTML = '<p>No pages available</p>';
+        return;
+      }
 
       const prevButton = document.createElement('button');
       prevButton.textContent = 'Previous';
@@ -573,16 +594,20 @@
 
     // Load data from Firestore
     function loadDataFromFirestore() {
+      console.log('Loading data from Firestore');
       const projectRef = db.collection('qaProjects').doc('Project Alpha');
       projectRef.get().then(doc => {
+        console.log('Firestore document retrieved:', doc.exists);
         if (doc.exists) {
           allRows = doc.data().rows || [];
+          console.log('Loaded rows:', allRows);
           updateProjectFilter(allRows);
           updateMilestoneProjectFilter(allRows);
           populateMilestoneTab(allRows);
           filterTable();
           updateChartWithFilter();
         } else {
+          console.log('Document does not exist, initializing with empty rows');
           projectRef.set({ rows: [] }).then(() => {
             allRows = [];
             updateProjectFilter([]);
@@ -592,17 +617,14 @@
             updateChartWithFilter();
           }).catch(err => {
             console.error('Error initializing document:', err.message);
-            allRows = [];
-            updateProjectFilter([]);
-            updateMilestoneProjectFilter([]);
-            populateMilestoneTab([]);
-            filterTable();
-            updateChartWithFilter();
+            document.getElementById('errorMessage').textContent = 'Error: Failed to initialize Firestore document.';
+            document.getElementById('errorMessage').style.display = 'block';
           });
         }
       }).catch(err => {
-        console.error('Error loading data:', err.message);
-        alert('Unable to load project data. Please try again later.');
+        console.error('Error loading data from Firestore:', err.message);
+        document.getElementById('errorMessage').textContent = 'Error: Unable to load project data. Please check your Firebase configuration or network connection.';
+        document.getElementById('errorMessage').style.display = 'block';
         allRows = [];
         updateProjectFilter([]);
         updateMilestoneProjectFilter([]);
@@ -613,6 +635,7 @@
     }
 
     function addNewRow() {
+      console.log('Adding new row');
       const tableBody = document.querySelector('#qaTable tbody');
       const newRow = document.createElement('tr');
       newRow.innerHTML = '<td></td>'.repeat(15) + 
@@ -630,6 +653,7 @@
     }
 
     function editRow(button) {
+      console.log('Editing row');
       event.stopPropagation();
       const row = button.closest('tr');
       const cells = Array.from(row.children).slice(0, 15);
@@ -647,6 +671,7 @@
     }
 
     function saveRow(button) {
+      console.log('Saving row');
       event.stopPropagation();
       button.classList.add('loading');
       button.disabled = true;
@@ -674,6 +699,7 @@
         }
         return doc.exists ? projectRef.update({ rows }) : projectRef.set({ rows });
       }).then(() => {
+        console.log('Row saved successfully');
         alert('Row saved successfully!');
         button.classList.remove('loading');
         button.disabled = false;
@@ -701,6 +727,7 @@
     }
 
     function deleteRow(button) {
+      console.log('Deleting row');
       event.stopPropagation();
       button.classList.add('loading');
       button.disabled = true;
@@ -724,6 +751,7 @@
         rows.splice(rowIndex, 1);
         return projectRef.update({ rows });
       }).then(() => {
+        console.log('Row deleted successfully');
         alert('Row deleted successfully!');
         button.classList.remove('loading');
         button.disabled = false;
@@ -737,6 +765,7 @@
     }
 
     function filterTable() {
+      console.log('Filtering table');
       const projectValue = document.getElementById('projectFilter').value.toLowerCase();
       const qaValue = document.getElementById('qaFilter').value.toLowerCase();
       const fromDate = document.getElementById('fromDateFilter').value;
@@ -780,16 +809,19 @@
         return matchesProjectAndQA && matchesDateRange && matchesApproved && matchesRejected;
       });
 
+      console.log('Filtered rows:', filteredRows);
       renderTableRows(filteredRows);
     }
 
     function exportTableToExcel() {
+      console.log('Exporting table to Excel');
       const table = document.getElementById('qaTable');
       const wb = XLSX.utils.table_to_book(table, { sheet: 'QA Projects' });
       XLSX.writeFile(wb, 'QA_Project_Tracker.xlsx');
     }
 
     function updateChartWithFilter() {
+      console.log('Updating chart with filter');
       const projectValue = document.getElementById('projectFilter').value;
       const qaValue = document.getElementById('qaFilter').value.toLowerCase();
       const fromDate = document.getElementById('fromDateFilter').value;
@@ -837,6 +869,7 @@
     }
 
     function updateChart(rows) {
+      console.log('Updating chart with rows:', rows);
       const projectFilter = document.getElementById('projectFilter').value;
       const projectName = projectFilter || 'All Projects';
 
@@ -875,16 +908,10 @@
             scales: {
               y: {
                 beginAtZero: true,
-                title: {
-                  display: true,
-                  text: 'Number of Bugs'
-                }
+                title: { display: true, text: 'Number of Bugs' }
               },
               x: {
-                title: {
-                  display: true,
-                  text: 'Project'
-                }
+                title: { display: true, text: 'Project' }
               }
             }
           }
@@ -895,6 +922,7 @@
     }
 
     function showMilestones(projectName) {
+      console.log('Showing milestones for project:', projectName);
       const milestoneBox = document.getElementById('milestoneBox');
       const milestoneList = document.getElementById('milestoneList');
       milestoneList.innerHTML = '';
@@ -925,8 +953,16 @@
       }
     }
 
+    // Initialize the app
     window.onload = function() {
-      loadDataFromFirestore();
+      console.log('Window loaded, initializing app');
+      try {
+        loadDataFromFirestore();
+      } catch (err) {
+        console.error('Error during initialization:', err.message);
+        document.getElementById('errorMessage').textContent = 'Error: Failed to initialize application.';
+        document.getElementById('errorMessage').style.display = 'block';
+      }
     };
   </script>
 </body>
