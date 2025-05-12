@@ -206,6 +206,8 @@
         <!-- Options will be populated dynamically -->
       </select>
       <input type="text" id="qaFilter" placeholder="Filter by QA Name" oninput="filterTable()">
+      <input type="date" id="fromDateFilter" placeholder="From Date" onchange="filterTable()">
+      <input type="date" id="toDateFilter" placeholder="To Date" onchange="filterTable()">
       <button onclick="exportTableToExcel()">Export Table</button>
     </div>
 
@@ -244,6 +246,12 @@
 
     <div class="milestone-tab" id="milestoneTab">
       <h3>All Projects Milestone Overview</h3>
+      <div class="controls">
+        <select id="milestoneProjectFilter" onchange="populateMilestoneTabWithFilter()">
+          <option value="">All Projects</option>
+          <!-- Options will be populated dynamically -->
+        </select>
+      </div>
       <div id="milestoneTabList"></div>
     </div>
 
@@ -280,6 +288,7 @@
 
     // Global variable to hold the chart instance
     let bugChartInstance = null;
+    let allRows = []; // Store all rows globally for filtering
 
     // Function to update the project filter dropdown
     function updateProjectFilter(rows) {
@@ -307,6 +316,31 @@
 
       const dropdownOptions = Array.from(projectFilter.options).map(opt => opt.value);
       console.log('Final dropdown options:', dropdownOptions);
+    }
+
+    // Function to update the milestone project filter dropdown
+    function updateMilestoneProjectFilter(rows) {
+      const milestoneProjectFilter = document.getElementById('milestoneProjectFilter');
+      milestoneProjectFilter.innerHTML = '<option value="">All Projects</option>';
+      
+      const projectNames = [...new Set(rows
+        .map(row => row.projectName)
+        .filter(name => name && name.trim() !== ''))];
+      console.log('Unique project names for milestone dropdown:', projectNames);
+
+      projectNames.forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        milestoneProjectFilter.appendChild(option);
+      });
+    }
+
+    // Function to populate the Milestone Tab with filter
+    function populateMilestoneTabWithFilter() {
+      const selectedProject = document.getElementById('milestoneProjectFilter').value;
+      const rows = selectedProject ? allRows.filter(row => row.projectName === selectedProject) : allRows;
+      populateMilestoneTab(rows);
     }
 
     // Function to populate the Milestone Tab
@@ -395,8 +429,8 @@
         if (doc.exists) {
           const data = doc.data();
           console.log('Firestore data loaded:', data); // Debug log
-          const rows = data.rows || [];
-          rows.forEach((row, index) => {
+          allRows = data.rows || [];
+          allRows.forEach((row, index) => {
             const newRow = document.createElement('tr');
             newRow.setAttribute('data-index', index); // Store index for updates
             newRow.addEventListener('click', (event) => {
@@ -430,33 +464,46 @@
           });
 
           // Update the project filter dropdown
-          updateProjectFilter(rows);
+          updateProjectFilter(allRows);
+          // Update the milestone project filter dropdown
+          updateMilestoneProjectFilter(allRows);
           // Populate the Milestone Tab
-          populateMilestoneTab(rows);
+          populateMilestoneTab(allRows);
           // Update the chart with Firestore data
-          updateChart(rows);
+          updateChart(allRows);
+          // Apply initial table filter
+          filterTable();
         } else {
           console.log('Document does not exist, creating new one'); // Debug log
           projectRef.set({ rows: [] })
             .then(() => {
               console.log('Initialized empty document in Firestore');
+              allRows = [];
               updateProjectFilter([]); // Update dropdown with no projects
+              updateMilestoneProjectFilter([]); // Update milestone dropdown
               populateMilestoneTab([]); // Update Milestone Tab with no projects
               updateChart([]); // Update chart with empty data
+              filterTable();
             })
             .catch(err => {
               console.error('Error initializing document:', err.message);
+              allRows = [];
               updateProjectFilter([]); // Fallback: empty dropdown
+              updateMilestoneProjectFilter([]); // Fallback: empty milestone dropdown
               populateMilestoneTab([]); // Fallback: empty Milestone Tab
               updateChart([]); // Fallback: render chart with empty data
+              filterTable();
             });
         }
       }).catch(err => {
         console.error('Error loading data from Firestore:', err.message); // Detailed error log
         alert('Unable to load project data from Firestore. Please check your connection or try again later.');
+        allRows = [];
         updateProjectFilter([]); // Fallback: empty dropdown
+        updateMilestoneProjectFilter([]); // Fallback: empty milestone dropdown
         populateMilestoneTab([]); // Fallback: empty Milestone Tab
         updateChart([]); // Fallback: render chart with empty data
+        filterTable();
       });
     }
 
@@ -614,10 +661,33 @@
     function filterTable() {
       const projectValue = document.getElementById('projectFilter').value.toLowerCase();
       const qaValue = document.getElementById('qaFilter').value.toLowerCase();
+      const fromDate = document.getElementById('fromDateFilter').value;
+      const toDate = document.getElementById('toDateFilter').value;
+
       document.querySelectorAll('#qaTable tbody tr').forEach(row => {
         const project = row.cells[0].textContent.toLowerCase();
         const qa = row.cells[1].textContent.toLowerCase();
-        row.style.display = (project.includes(projectValue) && qa.includes(qaValue)) ? '' : 'none';
+        const phaseStart = row.cells[7].textContent; // Phase Start Date
+
+        // Project and QA Name filter
+        let matchesProjectAndQA = project.includes(projectValue) && qa.includes(qaValue);
+
+        // Date range filter
+        let matchesDateRange = true;
+        if (fromDate || toDate) {
+          const startDate = phaseStart ? new Date(phaseStart) : null;
+          const from = fromDate ? new Date(fromDate) : null;
+          const to = toDate ? new Date(toDate) : null;
+
+          if (startDate) {
+            if (from && startDate < from) matchesDateRange = false;
+            if (to && startDate > to) matchesDateRange = false;
+          } else {
+            matchesDateRange = false; // Hide rows with invalid/no dates if date filter is applied
+          }
+        }
+
+        row.style.display = (matchesProjectAndQA && matchesDateRange) ? '' : 'none';
       });
     }
 
@@ -659,7 +729,7 @@
             ]
           },
           options: {
-            responsive: true;
+            responsive: true,
             plugins: {
               legend: { position: 'top' },
               title: { display: true, text: 'Bug Breakdown by Project' }
