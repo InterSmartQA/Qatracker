@@ -299,13 +299,15 @@
           updateChart(rows);
         } else {
           console.log('Document does not exist, creating new one'); // Debug log
-          // If the document doesn't exist, create it with an empty rows array
           projectRef.set({ rows: [] })
             .then(() => {
               console.log('Initialized empty document in Firestore');
               updateChart([]); // Update chart with empty data
             })
-            .catch(err => console.error('Error initializing document:', err.message));
+            .catch(err => {
+              console.error('Error initializing document:', err.message);
+              updateChart([]); // Fallback: render chart with empty data
+            });
         }
       }).catch(err => {
         console.error('Error loading data from Firestore:', err.message); // Detailed error log
@@ -344,32 +346,39 @@
         timestamp: new Date()
       };
 
+      console.log('Attempting to save row:', rowData); // Debug log
+
       projectRef.get().then(doc => {
+        let rows = [];
         if (doc.exists) {
-          const rows = doc.data().rows || [];
-          if (index !== null) {
-            // Update existing row
-            rows[parseInt(index)] = rowData;
-          } else {
-            // Add new row
-            rows.push(rowData);
-          }
-          console.log('Saving row to Firestore:', rowData); // Debug log
-          return projectRef.update({ rows });
+          rows = doc.data().rows || [];
+          console.log('Existing rows in Firestore:', rows); // Debug log
         } else {
           console.log('Document does not exist, creating new one with row'); // Debug log
-          return projectRef.set({ rows: [rowData] });
         }
+
+        if (index !== null) {
+          // Update existing row
+          rows[parseInt(index)] = rowData;
+        } else {
+          // Add new row
+          rows.push(rowData);
+        }
+
+        console.log('Updated rows to save:', rows); // Debug log
+        const operation = doc.exists ? projectRef.update({ rows }) : projectRef.set({ rows });
+        return operation;
       }).then(() => {
+        console.log('Row saved successfully to Firestore'); // Debug log
         button.classList.remove('loading');
         button.disabled = false;
-        console.log('Row saved successfully'); // Debug log
         loadDataFromFirestore(); // Refresh table and chart
       }).catch(err => {
         console.error('Error saving row to Firestore:', err.message); // Detailed error log
         alert('Failed to save row to Firestore. Check the console for details.');
         button.classList.remove('loading');
         button.disabled = false;
+        loadDataFromFirestore(); // Attempt to refresh table even if save fails
       });
     }
 
@@ -434,10 +443,8 @@
     }
 
     function updateChart(rows) {
-      // Log the rows to debug
-      console.log('Updating chart with rows:', rows);
+      console.log('Updating chart with rows:', rows); // Debug log
 
-      // Calculate bug counts, default to 0 if parsing fails
       const functionalBugs = rows.reduce((sum, row) => {
         const value = parseInt(row.functionalBugs);
         return sum + (isNaN(value) ? 0 : value);
@@ -451,7 +458,6 @@
 
       const ctx = document.getElementById('bugChart').getContext('2d');
 
-      // Destroy the existing chart if it exists
       if (bugChartInstance) {
         bugChartInstance.destroy();
         bugChartInstance = null;
