@@ -73,6 +73,7 @@
     }
     tr:hover {
       background-color: #f1f3f5;
+      cursor: pointer;
     }
     canvas {
       margin-top: 40px;
@@ -269,8 +270,15 @@
           const rows = data.rows || [];
           rows.forEach((row, index) => {
             const newRow = document.createElement('tr');
-            newRow.setAttribute('onclick', `showMilestones('${row.projectName}')`);
             newRow.setAttribute('data-index', index); // Store index for updates
+            // Add click event listener instead of inline onclick
+            newRow.addEventListener('click', (event) => {
+              // Prevent triggering milestone display if clicking on buttons
+              if (event.target.tagName !== 'BUTTON') {
+                console.log('Row clicked, projectName:', row.projectName); // Debug log
+                showMilestones(row.projectName || '');
+              }
+            });
             newRow.innerHTML = `
               <td contenteditable="true">${row.projectName || ''}</td>
               <td contenteditable="true">${row.qaName || ''}</td>
@@ -324,6 +332,14 @@
                         '<button class="delete-btn" onclick="deleteRow(this)">Delete</button>' +
                         '<button class="apply-btn" onclick="applyRow(this)">Apply</button>' +
                         '</td>';
+      // Add click event listener for new rows
+      newRow.addEventListener('click', (event) => {
+        if (event.target.tagName !== 'BUTTON') {
+          const projectName = newRow.cells[0].innerText || '';
+          console.log('New row clicked, projectName:', projectName); // Debug log
+          showMilestones(projectName);
+        }
+      });
       tableBody.appendChild(newRow);
     }
 
@@ -358,10 +374,8 @@
         }
 
         if (index !== null) {
-          // Update existing row
           rows[parseInt(index)] = rowData;
         } else {
-          // Add new row
           rows.push(rowData);
         }
 
@@ -378,7 +392,7 @@
         alert('Failed to save row to Firestore. Check the console for details.');
         button.classList.remove('loading');
         button.disabled = false;
-        loadDataFromFirestore(); // Attempt to refresh table even if save fails
+        loadDataFromFirestore();
       });
     }
 
@@ -390,7 +404,6 @@
       const row = button.closest('tr');
       const index = row.getAttribute('data-index');
       if (index === null) {
-        // New row, not yet saved to Firestore
         row.remove();
         button.classList.remove('loading');
         button.disabled = false;
@@ -409,16 +422,16 @@
           throw new Error(`Invalid row index: ${rowIndex}. Rows length: ${rows.length}`);
         }
 
-        rows.splice(rowIndex, 1); // Remove the row at the index
+        rows.splice(rowIndex, 1);
         console.log('Deleting row at index:', rowIndex, 'New rows:', rows); // Debug log
         return projectRef.update({ rows });
       }).then(() => {
         console.log('Row deleted successfully'); // Debug log
         button.classList.remove('loading');
         button.disabled = false;
-        loadDataFromFirestore(); // Refresh table and chart
+        loadDataFromFirestore();
       }).catch(err => {
-        console.error('Error deleting row from Firestore:', err.message); // Detailed error log
+        console.error('Error deleting row from Firestore:', err.message);
         alert('Failed to delete row from Firestore. Check the console for details.');
         button.classList.remove('loading');
         button.disabled = false;
@@ -443,7 +456,7 @@
     }
 
     function updateChart(rows) {
-      console.log('Updating chart with rows:', rows); // Debug log
+      console.log('Updating chart with rows:', rows);
 
       const functionalBugs = rows.reduce((sum, row) => {
         const value = parseInt(row.functionalBugs);
@@ -454,7 +467,7 @@
         return sum + (isNaN(value) ? 0 : value);
       }, 0);
 
-      console.log('Functional Bugs:', functionalBugs, 'HTML Bugs:', htmlBugs); // Debug log
+      console.log('Functional Bugs:', functionalBugs, 'HTML Bugs:', htmlBugs);
 
       const ctx = document.getElementById('bugChart').getContext('2d');
 
@@ -503,11 +516,13 @@
     }
 
     function showMilestones(projectName) {
+      console.log('showMilestones called with projectName:', projectName); // Debug log
       const milestoneBox = document.getElementById('milestoneBox');
       const milestoneList = document.getElementById('milestoneList');
       milestoneList.innerHTML = '';
 
-      if (projectName === 'Project Alpha') {
+      if (projectName.trim().toLowerCase() === 'project alpha') {
+        console.log('Displaying milestones for Project Alpha'); // Debug log
         const milestones = [
           { phase: 'Project Start', start: '2025-03-25', end: '', bugs: 0, status: 'Started' },
           { phase: 'UAT Execution', start: '2025-04-01', end: '2025-04-10', bugs: 15, status: 'Rejected on 2025-04-11' },
@@ -529,6 +544,7 @@
 
         milestoneBox.style.display = 'block';
       } else {
+        console.log('Hiding milestones, projectName does not match "Project Alpha"'); // Debug log
         milestoneBox.style.display = 'none';
       }
     }
