@@ -4,35 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>QA Project Overview Tracker</title>
-  <!-- External Scripts with Fallbacks -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-  <script>
-    if (typeof Chart === 'undefined') {
-      console.error('Chart.js failed to load. Please check CDN availability.');
-      document.write('<script src="path/to/local/chart.min.js"></script>'); // Replace with local fallback path
-    }
-  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
-  <script>
-    if (typeof XLSX === 'undefined') {
-      console.error('XLSX library failed to load. Please check CDN availability.');
-    }
-  </script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script>
-    if (typeof firebase === 'undefined') {
-      console.error('Firebase failed to load. Please check CDN availability.');
-    }
-  </script>
   <!-- Flatpickr CSS and JS -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
-  <script>
-    if (typeof flatpickr === 'undefined') {
-      console.error('Flatpickr failed to load. Please check CDN availability.');
-    }
-  </script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <style>
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -143,11 +121,9 @@
     }
     .milestone-summary {
       margin-bottom: 15px;
-      padding: 15px;
+      padding: 10px;
       background: #e9ecef;
       border-radius: 6px;
-      font-size: 15px;
-      border-left: 4px solid #007bff;
     }
     .milestone-summary strong {
       display: inline-block;
@@ -268,43 +244,6 @@
       width: 100%;
       box-sizing: border-box;
     }
-    .custom-dropdown {
-      position: relative;
-      min-width: 180px;
-    }
-    .custom-dropdown input {
-      width: 100%;
-      padding: 10px;
-      font-size: 15px;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      box-sizing: border-box;
-    }
-    .dropdown-list {
-      position: absolute;
-      top: 100%;
-      left: 0;
-      right: 0;
-      background: white;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      max-height: 200px;
-      overflow-y: auto;
-      z-index: 1000;
-      display: none;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    }
-    .dropdown-list div {
-      padding: 10px;
-      cursor: pointer;
-      font-size: 14px;
-    }
-    .dropdown-list div:hover {
-      background-color: #f1 apologizing f3f5;
-    }
-    .dropdown-list div.hidden {
-      display: none;
-    }
   </style>
 </head>
 <body>
@@ -318,12 +257,9 @@
       Error: This app must be run on a web server (e.g., localhost) to connect to Firebase. See instructions below.
     </div>
     <div class="controls">
-      <div class="custom-dropdown" id="projectFilter">
-        <input type="text" placeholder="Filter by Project" id="projectFilterInput">
-        <div class="dropdown-list" id="projectFilterList">
-          <div data-value="">All Projects</div>
-        </div>
-      </div>
+      <select id="projectFilter" onchange="filterTable(); updateChartWithFilter()">
+        <option value="">Filter by Project</option>
+      </select>
       <input type="text" id="qaFilter" placeholder="Filter by QA Name" oninput="filterTable(); updateChartWithFilter()">
       <input type="text" id="fromDateFilter" placeholder="From Date" readonly>
       <input type="text" id="toDateFilter" placeholder="To Date" readonly>
@@ -391,20 +327,6 @@
   </div>
 
   <script>
-    // Global error handler to catch unhandled errors
-    window.onerror = function(msg, url, lineNo, columnNo, error) {
-      console.error('Global error caught:', {
-        message: msg,
-        url: url,
-        line: lineNo,
-        column: columnNo,
-        error: error
-      });
-      document.getElementById('errorMessage').textContent = `Error: ${msg}. Check console for details.`;
-      document.getElementById('errorMessage').style.display = 'block';
-      return false;
-    };
-
     // Firebase Configuration
     const firebaseConfig = {
       apiKey: "AIzaSyAhl6jOgum2lRQe_M8mAodPFRtCUK5kYcY",
@@ -428,21 +350,17 @@
       throw new Error('App must be run on a server to connect to Firebase.');
     }
 
-    // Initialize Firebase with error handling
-    let db;
+    // Initialize Firebase
     try {
-      if (typeof firebase !== 'undefined') {
-        firebase.initializeApp(firebaseConfig);
-        db = firebase.firestore();
-        console.log('Firebase initialized successfully');
-      } else {
-        throw new Error('Firebase library not loaded');
-      }
+      firebase.initializeApp(firebaseConfig);
+      console.log('Firebase initialized successfully');
     } catch (err) {
       console.error('Firebase initialization failed:', err.message);
       document.getElementById('errorMessage').textContent = 'Error: Failed to connect to Firebase. Please check your configuration.';
       document.getElementById('errorMessage').style.display = 'block';
+      throw err;
     }
+    const db = firebase.firestore();
 
     // Global variables
     let bugChartInstance = null;
@@ -450,7 +368,6 @@
     const rowsPerPage = 15;
     let currentPage = 1;
     let datepickers = [];
-    let selectedProject = '';
 
     // Sample data for testing
     const sampleData = [
@@ -471,128 +388,39 @@
         notApprovedReason: "Pending fixes",
         notApprovedDate: "2025-03-31",
         timestamp: new Date()
-      },
-      {
-        projectName: "Project Alpha",
-        qaName: "Jane Smith",
-        testingPhase: "Phase 2",
-        totalBugs: "8",
-        functionalBugs: "4",
-        htmlBugs: "2",
-        totalIssues: "6",
-        phaseStart: "2025-04-01",
-        phaseEnd: "2025-04-10",
-        rejectReason: "",
-        rejectDate: "",
-        approved: "Yes",
-        approvedDate: "2025-04-11",
-        notApprovedReason: "",
-        notApprovedDate: "",
-        timestamp: new Date()
-      },
-      {
-        projectName: "Project Beta",
-        qaName: "Alice Johnson",
-        testingPhase: "Phase 1",
-        totalBugs: "12",
-        functionalBugs: "7",
-        htmlBugs: "5",
-        totalIssues: "10",
-        phaseStart: "2025-02-15",
-        phaseEnd: "2025-02-28",
-        rejectReason: "UI issues",
-        rejectDate: "2025-03-01",
-        approved: "No",
-        approvedDate: "",
-        notApprovedReason: "Needs rework",
-        notApprovedDate: "2025-03-01",
-        timestamp: new Date()
       }
     ];
 
-    // Initialize Flatpickr and other setup after DOM is loaded
+    // Initialize Flatpickr for filter date inputs
     document.addEventListener('DOMContentLoaded', () => {
-      try {
-        // Initialize Flatpickr
-        if (typeof flatpickr !== 'undefined') {
-          flatpickr('#fromDateFilter', {
-            dateFormat: 'Y-m-d',
-            allowInput: false,
-            onChange: () => { filterTable(); updateChartWithFilter(); }
-          });
-          flatpickr('#toDateFilter', {
-            dateFormat: 'Y-m-d',
-            allowInput: false,
-            onChange: () => { filterTable(); updateChartWithFilter(); }
-          });
-        } else {
-          console.warn('Flatpickr not available; date pickers disabled.');
-        }
-
-        // Initialize the app
-        loadDataFromFirestore();
-      } catch (err) {
-        console.error('Error during DOMContentLoaded initialization:', err);
-        document.getElementById('errorMessage').textContent = 'Error: Failed to initialize application.';
-        document.getElementById('errorMessage').style.display = 'block';
-      }
+      flatpickr('#fromDateFilter', {
+        dateFormat: 'Y-m-d',
+        allowInput: false,
+        onChange: () => { filterTable(); updateChartWithFilter(); }
+      });
+      flatpickr('#toDateFilter', {
+        dateFormat: 'Y-m-d',
+        allowInput: false,
+        onChange: () => { filterTable(); updateChartWithFilter(); }
+      });
     });
 
-    // Initialize custom project filter dropdown
-    function initializeProjectFilter(rows) {
-      console.log('Initializing project filter with rows:', rows);
-      const projectFilterInput = document.getElementById('projectFilterInput');
-      const projectFilterList = document.getElementById('projectFilterList');
-
-      if (!projectFilterInput || !projectFilterList) {
-        console.error('Project filter elements not found.');
-        return;
-      }
-
-      // Get unique project names
+    // Function to update the project filter dropdown
+    function updateProjectFilter(rows) {
+      console.log('Updating project filter with rows:', rows);
+      const projectFilter = document.getElementById('projectFilter');
+      projectFilter.innerHTML = '<option value="">Filter by Project</option>';
+      
       const projectNames = [...new Set(rows
         .map(row => row.projectName)
         .filter(name => name && name.trim() !== ''))];
       console.log('Unique project names for dropdown:', projectNames);
 
-      // Populate dropdown list
-      projectFilterList.innerHTML = '<div data-value="">All Projects</div>';
       projectNames.forEach(name => {
-        const div = document.createElement('div');
-        div.setAttribute('data-value', name);
-        div.textContent = name;
-        projectFilterList.appendChild(div);
-      });
-
-      // Event listeners for dropdown
-      projectFilterInput.addEventListener('focus', () => {
-        projectFilterList.style.display = 'block';
-      });
-
-      projectFilterInput.addEventListener('input', () => {
-        const filterValue = projectFilterInput.value.toLowerCase();
-        Array.from(projectFilterList.children).forEach(item => {
-          const text = item.textContent.toLowerCase();
-          item.classList.toggle('hidden', !text.includes(filterValue) && item.getAttribute('data-value') !== '');
-        });
-      });
-
-      projectFilterList.addEventListener('click', (e) => {
-        const target = e.target;
-        if (target.tagName === 'DIV') {
-          selectedProject = target.getAttribute('data-value');
-          projectFilterInput.value = target.textContent;
-          projectFilterList.style.display = 'none';
-          filterTable();
-          updateChartWithFilter();
-        }
-      });
-
-      // Close dropdown when clicking outside
-      document.addEventListener('click', (e) => {
-        if (!projectFilterInput.contains(e.target) && !projectFilterList.contains(e.target)) {
-          projectFilterList.style.display = 'none';
-        }
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        projectFilter.appendChild(option);
       });
     }
 
@@ -600,10 +428,6 @@
     function updateMilestoneProjectFilter(rows) {
       console.log('Updating milestone project filter with rows:', rows);
       const milestoneProjectFilter = document.getElementById('milestoneProjectFilter');
-      if (!milestoneProjectFilter) {
-        console.error('Milestone project filter element not found.');
-        return;
-      }
       milestoneProjectFilter.innerHTML = '<option value="">All Projects</option>';
       
       const projectNames = [...new Set(rows
@@ -622,12 +446,7 @@
     // Function to populate the Milestone Tab with filter
     function populateMilestoneTabWithFilter() {
       console.log('Populating milestone tab with filter');
-      const milestoneProjectFilter = document.getElementById('milestoneProjectFilter');
-      if (!milestoneProjectFilter) {
-        console.error('Milestone project filter element not found.');
-        return;
-      }
-      const selectedProject = milestoneProjectFilter.value;
+      const selectedProject = document.getElementById('milestoneProjectFilter').value;
       const rows = selectedProject ? allRows.filter(row => row.projectName === selectedProject) : allRows;
       populateMilestoneTab(rows);
     }
@@ -647,13 +466,8 @@
     function populateMilestoneTab(rows) {
       console.log('Populating milestone tab with rows:', rows);
       const milestoneTabList = document.getElementById('milestoneTabList');
-      if (!milestoneTabList) {
-        console.error('Milestone tab list element not found.');
-        return;
-      }
       milestoneTabList.innerHTML = '';
 
-      // Group rows by project
       const projects = {};
       rows.forEach(row => {
         const projectName = row.projectName || 'Unnamed Project';
@@ -665,14 +479,12 @@
 
       for (const projectName in projects) {
         const projectRows = projects[projectName];
-        // Sort rows by phaseStart date
         projectRows.sort((a, b) => {
           const dateA = a.phaseStart ? new Date(a.phaseStart) : new Date(0);
           const dateB = b.phaseStart ? new Date(b.phaseStart) : new Date(0);
           return dateA - dateB;
         });
 
-        // Collect valid start and end dates
         const validStartDates = projectRows
           .map(row => row.phaseStart)
           .filter(date => date && !isNaN(new Date(date)))
@@ -680,16 +492,12 @@
         const validEndDates = projectRows
           .map(row => row.phaseEnd)
           .filter(date => date && !isNaN(new Date(date)))
-          .sort((a, b) => new Date(b) - new Date(a)); // Fixed typo: removed 'thawing'
+          .sort((a, b) => new Date(b) - new Date(a));
 
-        // Determine Project Start and Project End
         const projectStart = validStartDates.length > 0 ? validStartDates[0] : 'N/A';
         const projectEnd = validEndDates.length > 0 ? validEndDates[validEndDates.length - 1] : 'N/A';
-
-        // Calculate Total Days
         const totalDays = calculateDaysBetween(projectStart, projectEnd);
 
-        // Create project div with milestone summary
         const projectDiv = document.createElement('div');
         projectDiv.classList.add('milestone-box');
         projectDiv.innerHTML = `
@@ -701,7 +509,6 @@
           </div>
         `;
 
-        // Add phase details
         projectRows.forEach(row => {
           const phaseDays = calculateDaysBetween(row.phaseStart, row.phaseEnd);
           const phaseDiv = document.createElement('div');
@@ -730,10 +537,6 @@
     function renderTableRows(rows) {
       console.log('Rendering table rows:', rows);
       const tableBody = document.querySelector('#qaTable tbody');
-      if (!tableBody) {
-        console.error('Table body element not found.');
-        return;
-      }
       tableBody.innerHTML = '';
 
       const start = (currentPage - 1) * rowsPerPage;
@@ -784,10 +587,6 @@
     function updatePagination(totalRows) {
       console.log('Updating pagination with total rows:', totalRows);
       const pagination = document.getElementById('pagination');
-      if (!pagination) {
-        console.error('Pagination element not found.');
-        return;
-      }
       pagination.innerHTML = '';
       const totalPages = Math.ceil(totalRows / rowsPerPage);
 
@@ -836,17 +635,6 @@
     // Load data from Firestore with fallback
     function loadDataFromFirestore() {
       console.log('Loading data from Firestore');
-      if (!db) {
-        console.error('Firestore not initialized. Using sample data.');
-        allRows = sampleData;
-        initializeProjectFilter(allRows);
-        updateMilestoneProjectFilter(allRows);
-        populateMilestoneTab(allRows);
-        filterTable();
-        updateChartWithFilter();
-        return;
-      }
-
       const projectRef = db.collection('qaProjects').doc('Project Alpha');
       projectRef.get().then(doc => {
         console.log('Firestore document retrieved:', doc.exists);
@@ -865,7 +653,7 @@
           });
         }
         console.log('allRows after load:', allRows);
-        initializeProjectFilter(allRows);
+        updateProjectFilter(allRows);
         updateMilestoneProjectFilter(allRows);
         populateMilestoneTab(allRows);
         filterTable();
@@ -877,7 +665,7 @@
         console.log('Using sample data due to Firestore error');
         allRows = sampleData;
         console.log('allRows after error fallback:', allRows);
-        initializeProjectFilter(allRows);
+        updateProjectFilter(allRows);
         updateMilestoneProjectFilter(allRows);
         populateMilestoneTab(allRows);
         filterTable();
@@ -888,10 +676,6 @@
     function addNewRow() {
       console.log('Adding new row');
       const tableBody = document.querySelector('#qaTable tbody');
-      if (!tableBody) {
-        console.error('Table body element not found.');
-        return;
-      }
       const newRow = document.createElement('tr');
       newRow.innerHTML = '<td></td>'.repeat(15) + 
                         '<td>' +
@@ -912,10 +696,6 @@
       console.log('Editing row');
       event.stopPropagation();
       const row = button.closest('tr');
-      if (!row) {
-        console.error('Row element not found for editing.');
-        return;
-      }
       const cells = Array.from(row.children).slice(0, 15);
 
       datepickers.forEach(dp => dp.destroy());
@@ -933,16 +713,14 @@
           cell.innerHTML = '';
           cell.appendChild(input);
 
-          if (typeof flatpickr !== 'undefined') {
-            const fp = flatpickr(input, {
-              dateFormat: 'Y-m-d',
-              allowInput: false,
-              onChange: (selectedDates, dateStr) => {
-                cell.innerText = dateStr;
-              }
-            });
-            datepickers.push(fp);
-          }
+          const fp = flatpickr(input, {
+            dateFormat: 'Y-m-d',
+            allowInput: false,
+            onChange: (selectedDates, dateStr) => {
+              cell.innerText = dateStr;
+            }
+          });
+          datepickers.push(fp);
         }
       });
 
@@ -963,15 +741,9 @@
       datepickers = [];
 
       const row = button.closest('tr');
-      if (!row) {
-        console.error('Row element not found for saving.');
-        button.classList.remove('loading');
-        button.disabled = false;
-        return;
-      }
       const index = row.getAttribute('data-index');
       const data = Array.from(row.children).slice(0, 15).map(cell => cell.innerText);
-      const projectRef = db && db.collection('qaProjects').doc('Project Alpha');
+      const projectRef = db.collection('qaProjects').doc('Project Alpha');
 
       const rowData = {
         projectName: data[0], qaName: data[1], testingPhase: data[2],
@@ -981,14 +753,6 @@
         approvedDate: data[12], notApprovedReason: data[13], notApprovedDate: data[14],
         timestamp: new Date()
       };
-
-      if (!projectRef) {
-        console.error('Firestore not initialized. Cannot save row.');
-        alert('Failed to save the row. Firestore not available.');
-        button.classList.remove('loading');
-        button.disabled = false;
-        return;
-      }
 
       projectRef.get().then(doc => {
         let rows = doc.exists ? doc.data().rows || [] : [];
@@ -1033,12 +797,6 @@
       button.disabled = true;
 
       const row = button.closest('tr');
-      if (!row) {
-        console.error('Row element not found for deletion.');
-        button.classList.remove('loading');
-        button.disabled = false;
-        return;
-      }
       const index = row.getAttribute('data-index');
       if (index === null) {
         row.remove();
@@ -1048,15 +806,7 @@
         return;
       }
 
-      const projectRef = db && db.collection('qaProjects').doc('Project Alpha');
-      if (!projectRef) {
-        console.error('Firestore not initialized. Cannot delete row.');
-        alert('Failed to delete the row. Firestore not available.');
-        button.classList.remove('loading');
-        button.disabled = false;
-        return;
-      }
-
+      const projectRef = db.collection('qaProjects').doc('Project Alpha');
       projectRef.get().then(doc => {
         if (!doc.exists) throw new Error('Document does not exist');
         const rows = doc.data().rows || [];
@@ -1073,7 +823,6 @@
       }).catch(err => {
         console.error('Error deleting row:', err.message);
         alert('Failed to delete the row. Please try again later.');
-        button.classList.remove('loading');
         button.disabled = false;
         loadDataFromFirestore();
       });
@@ -1081,12 +830,12 @@
 
     function filterTable() {
       console.log('Filtering table');
-      const projectValue = selectedProject.toLowerCase();
-      const qaValue = document.getElementById('qaFilter')?.value.toLowerCase() || '';
-      const fromDate = document.getElementById('fromDateFilter')?.value || '';
-      const toDate = document.getElementById('toDateFilter')?.value || '';
-      const approvedValue = document.getElementById('approvedFilter')?.value || '';
-      const rejectedValue = document.getElementById('rejectedFilter')?.value || '';
+      const projectValue = document.getElementById('projectFilter').value.toLowerCase();
+      const qaValue = document.getElementById('qaFilter').value.toLowerCase();
+      const fromDate = document.getElementById('fromDateFilter').value;
+      const toDate = document.getElementById('toDateFilter').value;
+      const approvedValue = document.getElementById('approvedFilter').value;
+      const rejectedValue = document.getElementById('rejectedFilter').value;
 
       const filteredRows = allRows.filter(row => {
         const project = (row.projectName || '').toLowerCase();
@@ -1095,7 +844,7 @@
         const approved = (row.approved || '').toLowerCase();
         const rejectReason = row.rejectReason || '';
 
-        let matchesProjectAndQA = (!projectValue || project.includes(projectValue)) && qa.includes(qaValue);
+        let matchesProjectAndQA = project.includes(projectValue) && qa.includes(qaValue);
 
         let matchesDateRange = true;
         if (fromDate || toDate) {
@@ -1131,27 +880,18 @@
     function exportTableToExcel() {
       console.log('Exporting table to Excel');
       const table = document.getElementById('qaTable');
-      if (!table) {
-        console.error('Table element not found for export.');
-        return;
-      }
-      if (typeof XLSX !== 'undefined') {
-        const wb = XLSX.utils.table_to_book(table, { sheet: 'QA Projects' });
-        XLSX.writeFile(wb, 'QA_Project_Tracker.xlsx');
-      } else {
-        console.error('XLSX library not available. Cannot export to Excel.');
-        alert('Export failed. XLSX library not loaded.');
-      }
+      const wb = XLSX.utils.table_to_book(table, { sheet: 'QA Projects' });
+      XLSX.writeFile(wb, 'QA_Project_Tracker.xlsx');
     }
 
     function updateChartWithFilter() {
       console.log('Updating chart with filter');
-      const projectValue = selectedProject;
-      const qaValue = document.getElementById('qaFilter')?.value.toLowerCase() || '';
-      const fromDate = document.getElementById('fromDateFilter')?.value || '';
-      const toDate = document.getElementById('toDateFilter')?.value || '';
-      const approvedValue = document.getElementById('approvedFilter')?.value || '';
-      const rejectedValue = document.getElementById('rejectedFilter')?.value || '';
+      const projectValue = document.getElementById('projectFilter').value;
+      const qaValue = document.getElementById('qaFilter').value.toLowerCase();
+      const fromDate = document.getElementById('fromDateFilter').value;
+      const toDate = document.getElementById('toDateFilter').value;
+      const approvedValue = document.getElementById('approvedFilter').value;
+      const rejectedValue = document.getElementById('rejectedFilter').value;
 
       const filteredRows = allRows.filter(row => {
         const project = (row.projectName || '').toLowerCase();
@@ -1160,7 +900,7 @@
         const approved = (row.approved || '').toLowerCase();
         const rejectReason = row.rejectReason || '';
 
-        let matchesProjectAndQA = (!projectValue || project.includes(projectValue.toLowerCase())) && qa.includes(qaValue);
+        let matchesProjectAndQA = project.includes(projectValue.toLowerCase()) && qa.includes(qaValue);
 
         let matchesDateRange = true;
         if (fromDate || toDate) {
@@ -1194,9 +934,9 @@
 
     function updateChart(rows) {
       console.log('Updating chart with rows:', rows);
-      const projectName = selectedProject || 'All Projects';
+      const projectFilter = document.getElementById('projectFilter').value;
+      const projectName = projectFilter || 'All Projects';
 
-      // Aggregate bugs
       const functionalBugs = rows.reduce((sum, row) => {
         const value = parseInt(row.functionalBugs);
         return sum + (isNaN(value) ? 0 : value);
@@ -1206,65 +946,36 @@
         return sum + (isNaN(value) ? 0 : value);
       }, 0);
 
-      const ctx = document.getElementById('bugChart')?.getContext('2d');
-      if (!ctx) {
-        console.error('Canvas context for bugChart not found.');
-        return;
-      }
+      const ctx = document.getElementById('bugChart').getContext('2d');
 
-      // Destroy existing chart instance if it exists
       if (bugChartInstance) {
         bugChartInstance.destroy();
         bugChartInstance = null;
       }
 
-      if (typeof Chart === 'undefined') {
-        console.error('Chart.js not available. Cannot render chart.');
-        return;
-      }
-
       try {
         bugChartInstance = new Chart(ctx, {
-          type: 'pie',
+          type: 'bar',
           data: {
-            labels: ['Functional Bugs', 'HTML Bugs'],
-            datasets: [{
-              data: [functionalBugs, htmlBugs],
-              backgroundColor: ['#007bff', '#ffc107'],
-              borderColor: ['#ffffff', '#ffffff'],
-              borderWidth: 2,
-              hoverOffset: 20
-            }]
+            labels: [projectName],
+            datasets: [
+              { label: 'Functional Bugs', data: [functionalBugs], backgroundColor: '#007bff' },
+              { label: 'HTML Bugs', data: [htmlBugs], backgroundColor: '#ffc107' }
+            ]
           },
           options: {
             responsive: true,
             plugins: {
-              legend: {
-                position: 'top',
-                labels: {
-                  font: {
-                    size: 14
-                  }
-                }
+              legend: { position: 'top' },
+              title: { display: true, text: `Bug Breakdown for ${projectName}` }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                title: { display: true, text: 'Number of Bugs' }
               },
-              title: {
-                display: true,
-                text: `Bug Breakdown for ${projectName}`,
-                font: {
-                  size: 18
-                }
-              },
-              tooltip: {
-                callbacks: {
-                  label: function(context) {
-                    let label = context.label || '';
-                    if (label) {
-                      label += ': ';
-                    }
-                    label += context.raw;
-                    return label;
-                  }
-                }
+              x: {
+                title: { display: true, text: 'Project' }
               }
             }
           }
@@ -1278,10 +989,6 @@
       console.log('Showing milestones for project:', projectName);
       const milestoneBox = document.getElementById('milestoneBox');
       const milestoneList = document.getElementById('milestoneList');
-      if (!milestoneBox || !milestoneList) {
-        console.error('Milestone box or list element not found.');
-        return;
-      }
       milestoneList.innerHTML = '';
 
       if (projectName.trim().toLowerCase() === 'project alpha') {
@@ -1309,6 +1016,18 @@
         milestoneBox.style.display = 'none';
       }
     }
+
+    // Initialize the app
+    window.onload = function() {
+      console.log('Window loaded, initializing app');
+      try {
+        loadDataFromFirestore();
+      } catch (err) {
+        console.error('Error during initialization:', err.message);
+        document.getElementById('errorMessage').textContent = 'Error: Failed to initialize application.';
+        document.getElementById('errorMessage').style.display = 'block';
+      }
+    };
   </script>
 </body>
 </html>
