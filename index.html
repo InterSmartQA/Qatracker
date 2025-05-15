@@ -795,6 +795,10 @@
         tableBody.innerHTML = '<tr><td colspan="17">No data available</td></tr>';
       } else {
         paginatedRows.forEach((row, index) => {
+          if (!row.rowId) {
+            console.warn('Row missing rowId, assigning new one:', row);
+            row.rowId = generateUUID();
+          }
           const newRow = document.createElement('tr');
           newRow.setAttribute('data-rowid', row.rowId);
           newRow.addEventListener('click', (event) => {
@@ -889,7 +893,11 @@
       projectRef.get().then(doc => {
         console.log('Firestore document retrieved:', doc.exists);
         if (doc.exists && doc.data().rows && doc.data().rows.length > 0) {
-          allRows = doc.data().rows;
+          // Ensure all rows have rowId
+          allRows = doc.data().rows.map(row => ({
+            ...row,
+            rowId: row.rowId || generateUUID()
+          }));
           console.log('Loaded rows from Firestore:', allRows);
         } else {
           console.log('No data in Firestore, using sample data');
@@ -951,6 +959,12 @@
       console.log('Editing row');
       event.stopPropagation();
       const row = button.closest('tr');
+      const rowId = row.getAttribute('data-rowid');
+      if (!rowId) {
+        console.error('Row ID is missing during edit');
+        alert('Error: Row ID is missing. Please try again.');
+        return;
+      }
       const cells = Array.from(row.children).slice(0, 16);
 
       // Destroy existing datepickers
@@ -1009,8 +1023,16 @@
       button.disabled = true;
 
       const row = button.closest('tr');
-      const rowId = row.getAttribute('data-rowid');
+      let rowId = row.getAttribute('data-rowid');
       const isNewRow = row.getAttribute('data-new') === 'true';
+
+      // Ensure rowId exists
+      if (!rowId) {
+        console.warn('Row ID is undefined, generating new one');
+        rowId = generateUUID();
+        row.setAttribute('data-rowid', rowId);
+      }
+
       const cells = Array.from(row.children).slice(0, 16);
       const data = cells.map(cell => cell.querySelector('input').value);
 
@@ -1052,7 +1074,8 @@
         } else {
           const rowIndex = rows.findIndex(r => r.rowId === rowId);
           if (rowIndex === -1) {
-            throw new Error(`Row with ID ${rowId} not found`);
+            console.error(`Row with ID ${rowId} not found in Firestore`);
+            throw new Error(`Row with ID ${rowId} not found in Firestore`);
           }
           rows[rowIndex] = rowData;
         }
@@ -1083,6 +1106,14 @@
 
       const row = button.closest('tr');
       const rowId = row.getAttribute('data-rowid');
+
+      if (!rowId) {
+        console.error('Row ID is missing during delete');
+        alert('Error: Row ID is missing. Please try again.');
+        button.classList.remove('loading');
+        button.disabled = false;
+        return;
+      }
 
       if (row.getAttribute('data-new') === 'true') {
         row.remove();
