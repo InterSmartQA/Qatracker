@@ -651,10 +651,10 @@
         console.error('Anonymous sign-in failed:', err.code, err.message);
         let errorMessage = `Failed to sign in: ${err.message}`;
         if (err.code === 'auth/admin-restricted-operation') {
-          errorMessage = 'Anonymous sign-in is restricted. Please enable anonymous authentication in Firebase Console (Authentication > Sign-in method > Anonymous).';
+          errorMessage = 'Anonymous sign-in is disabled or restricted. Please enable anonymous authentication in Firebase Console (Authentication > Sign-in method > Anonymous).';
         }
         showError(errorMessage);
-        // Fallback to sample data
+        // Fallback to sample data for read-only mode
         console.log('Falling back to sample data due to authentication failure');
         allRows = sampleData;
         updateProjectFilter(allRows);
@@ -664,7 +664,7 @@
         updateChartWithFilter();
         document.getElementById('controls').style.display = 'flex';
         document.querySelector('.table-container').style.display = 'block';
-        // Disable add/edit/delete buttons to prevent Firestore writes
+        // Disable add/edit/delete to prevent Firestore writes
         document.querySelector('.add-row-btn').style.display = 'none';
         document.querySelectorAll('.edit-btn, .delete-btn').forEach(btn => btn.disabled = true);
       });
@@ -679,6 +679,7 @@
         document.getElementById('controls').style.display = 'flex';
         document.querySelector('.table-container').style.display = 'block';
         document.querySelector('.add-row-btn').style.display = 'block';
+        document.querySelectorAll('.edit-btn, .delete-btn').forEach(btn => btn.disabled = false);
         loadDataFromFirestore();
       } else {
         console.log('No user authenticated');
@@ -983,14 +984,16 @@
     // Load data from Firestore with fallback
     function loadDataFromFirestore() {
       if (!user) {
-        console.log('No user authenticated, skipping data load');
-        showError('Please sign in to access data.');
+        console.log('No user authenticated, using sample data');
+        showError('Please sign in to access data. Using sample data in read-only mode.');
         allRows = sampleData;
         updateProjectFilter(allRows);
         updateMilestoneProjectFilter(allRows);
         populateMilestoneTab(allRows);
         filterTable();
         updateChartWithFilter();
+        document.querySelector('.add-row-btn').style.display = 'none';
+        document.querySelectorAll('.edit-btn, .delete-btn').forEach(btn => btn.disabled = true);
         return;
       }
       console.log('Loading data from Firestore for user:', user.uid);
@@ -1021,13 +1024,15 @@
         hideError();
       }).catch(err => {
         console.error('Error loading data from Firestore:', err.code, err.message);
-        showError(`Error: Unable to load project data. ${err.message}`);
+        showError(`Error: Unable to load project data. Using sample data in read-only mode. ${err.message}`);
         allRows = sampleData;
         updateProjectFilter(allRows);
         updateMilestoneProjectFilter(allRows);
         populateMilestoneTab(allRows);
         filterTable();
         updateChartWithFilter();
+        document.querySelector('.add-row-btn').style.display = 'none';
+        document.querySelectorAll('.edit-btn, .delete-btn').forEach(btn => btn.disabled = true);
       });
     }
 
@@ -1190,6 +1195,7 @@
           const rowIndex = rows.findIndex(r => r.rowId === rowId);
           if (rowIndex === -1) {
             console.error(`Row with ID ${rowId} not found in Firestore`);
+            showError(`Error: Row with ID ${rowId} not found in Firestore.`);
             throw new Error(`Row with ID ${rowId} not found in Firestore`);
           }
           console.log('Updating existing row at index:', rowIndex);
@@ -1260,7 +1266,9 @@
           console.warn(`Row with ID ${rowId} not found in Firestore, removing from DOM`);
           row.remove();
           alert('Row removed from display (not found in Firestore).');
-          throw new Error(`Row with ID ${rowId} not found in Firestore`);
+          button.classList.remove('loading');
+          button.disabled = false;
+          return;
         }
         console.log('Found row at index:', rowIndex);
         rows.splice(rowIndex, 1);
@@ -1447,7 +1455,7 @@
 
       if (projectName.trim().toLowerCase() === 'project alpha') {
         const milestones = [
-          { phase: 'Project Start', start: '2025-03-25', end: '', bugs: 0, status: 'Started' },
+          { phase: 'Project Start', start: '2025-03-25', end: '', bugs:  0, status: 'Started' },
           { phase: 'UAT Execution', start: '2025-04-01', end: '2025-04-10', bugs: 15, status: 'Rejected on 2025-04-11' },
           { phase: 'Fix & Review', start: '2025-04-11', end: '2025-04-14', bugs: 5, status: 'Approved on 2025-04-15' }
         ];
