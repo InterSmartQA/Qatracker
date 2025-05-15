@@ -8,6 +8,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -62,6 +63,25 @@
       padding: 40px;
       border-radius: 16px;
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    }
+
+    .auth-container {
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .auth-container button {
+      padding: 10px 20px;
+      background-color: var(--secondary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .auth-container button:hover {
+      background-color: #21867a;
     }
 
     .controls {
@@ -467,10 +487,13 @@
   </header>
 
   <div class="container">
-    <div class="error-message hidden" id="errorMessage">
-      Error: This app must be run on a web server (e.g., localhost) to connect to Firebase. See instructions below.
+    <div class="auth-container" id="authContainer">
+      <button onclick="signInAnonymously()">Sign In to Access Dashboard</button>
     </div>
-    <div class="controls">
+    <div class="error-message hidden" id="errorMessage">
+      Error: This app must be run on a web server (e.g., localhost) to connect to Firebase.
+    </div>
+    <div class="controls" id="controls">
       <select id="projectFilter" onchange="filterTable(); updateChartWithFilter()">
         <option value="">Filter by Project</option>
       </select>
@@ -581,6 +604,7 @@
       throw err;
     }
     const db = firebase.firestore();
+    const auth = firebase.auth();
 
     // Global variables
     let bugChartInstance = null;
@@ -588,6 +612,20 @@
     const rowsPerPage = 15;
     let currentPage = 1;
     let datepickers = [];
+    let user = null;
+
+    // Show error message in UI
+    function showError(message) {
+      const errorMessage = document.getElementById('errorMessage');
+      errorMessage.textContent = message;
+      errorMessage.classList.remove('hidden');
+    }
+
+    // Hide error message
+    function hideError() {
+      const errorMessage = document.getElementById('errorMessage');
+      errorMessage.classList.add('hidden');
+    }
 
     // Utility to generate UUID
     function generateUUID() {
@@ -597,15 +635,41 @@
       });
     }
 
-    // Show error message in UI
-    function showError(message) {
-      const errorMessage = document.getElementById('errorMessage');
-      errorMessage.textContent = message;
-      errorMessage.classList.remove('hidden');
-      setTimeout(() => {
-        errorMessage.classList.add('hidden');
-      }, 5000);
+    // Handle authentication
+    function signInAnonymously() {
+      auth.signInAnonymously().then(userCredential => {
+        user = userCredential.user;
+        console.log('Signed in anonymously:', user.uid);
+        document.getElementById('authContainer').style.display = 'none';
+        document.getElementById('controls').style.display = 'flex';
+        document.querySelector('.table-container').style.display = 'block';
+        document.querySelector('.add-row-btn').style.display = 'block';
+        loadDataFromFirestore();
+      }).catch(err => {
+        console.error('Anonymous sign-in failed:', err.message);
+        showError('Failed to sign in: ' + err.message);
+      });
     }
+
+    // Check auth state
+    auth.onAuthStateChanged(currentUser => {
+      user = currentUser;
+      if (user) {
+        console.log('User is authenticated:', user.uid);
+        document.getElementById('authContainer').style.display = 'none';
+        document.getElementById('controls').style.display = 'flex';
+        document.querySelector('.table-container').style.display = 'block';
+        document.querySelector('.add-row-btn').style.display = 'block';
+        loadDataFromFirestore();
+      } else {
+        console.log('No user authenticated');
+        document.getElementById('authContainer').style.display = 'block';
+        document.getElementById('controls').style.display = 'none';
+        document.querySelector('.table-container').style.display = 'none';
+        document.querySelector('.add-row-btn').style.display = 'none';
+        showError('Please sign in to access the dashboard.');
+      }
+    });
 
     // Sample data for testing
     const sampleData = [
@@ -899,7 +963,12 @@
 
     // Load data from Firestore with fallback
     function loadDataFromFirestore() {
-      console.log('Loading data from Firestore');
+      if (!user) {
+        console.log('No user authenticated, skipping data load');
+        showError('Please sign in to access data.');
+        return;
+      }
+      console.log('Loading data from Firestore for user:', user.uid);
       const projectRef = db.collection('qaProjects').doc('Project Alpha');
       projectRef.get().then(doc => {
         console.log('Firestore document retrieved:', doc.exists);
@@ -908,7 +977,7 @@
             ...row,
             rowId: row.rowId || generateUUID()
           }));
-          console.log('Loaded rows from Firestore:', allRows.length, allRows);
+          console.log('Loaded rows from Firestore:', allRows.length, allRows.map(r => r.rowId));
         } else {
           console.log('No valid data in Firestore, using sample data');
           allRows = sampleData;
@@ -924,10 +993,10 @@
         populateMilestoneTab(allRows);
         filterTable();
         updateChartWithFilter();
+        hideError();
       }).catch(err => {
         console.error('Error loading data from Firestore:', err.message);
         showError(`Error: Unable to load project data. ${err.message}`);
-        console.log('Using sample data due to Firestore error');
         allRows = sampleData;
         updateProjectFilter(allRows);
         updateMilestoneProjectFilter(allRows);
@@ -938,6 +1007,10 @@
     }
 
     function addNewRow() {
+      if (!user) {
+        showError('Please sign in to add rows.');
+        return;
+      }
       console.log('Adding new row');
       const tableBody = document.querySelector('#qaTable tbody');
       const newRow = document.createElement('tr');
@@ -962,6 +1035,10 @@
     }
 
     function editRow(button) {
+      if (!user) {
+        showError('Please sign in to edit rows.');
+        return;
+      }
       console.log('Editing row');
       event.stopPropagation();
       const row = button.closest('tr');
@@ -1024,6 +1101,10 @@
     }
 
     function saveRow(button) {
+      if (!user) {
+        showError('Please sign in to save rows.');
+        return;
+      }
       console.log('Saving row');
       event.stopPropagation();
       button.classList.add('loading');
@@ -1075,7 +1156,7 @@
       const projectRef = db.collection('qaProjects').doc('Project Alpha');
       projectRef.get().then(doc => {
         let rows = doc.exists && doc.data().rows ? doc.data().rows : [];
-        console.log('Current Firestore rows:', rows.length);
+        console.log('Current Firestore rows:', rows.length, rows.map(r => r.rowId));
         if (isNewRow) {
           console.log('Adding new row to Firestore');
           rows.push(rowData);
@@ -1107,6 +1188,10 @@
     }
 
     function deleteRow(button) {
+      if (!user) {
+        showError('Please sign in to delete rows.');
+        return;
+      }
       console.log('Deleting row');
       event.stopPropagation();
       if (!confirm('Are you sure you want to delete this row?')) return;
@@ -1141,7 +1226,7 @@
           throw new Error('Firestore document does not exist');
         }
         let rows = doc.data().rows || [];
-        console.log('Firestore rows before deletion:', rows.length);
+        console.log('Firestore rows before deletion:', rows.length, rows.map(r => r.rowId));
         const rowIndex = rows.findIndex(r => r.rowId === rowId);
         if (rowIndex === -1) {
           console.error(`Row with ID ${rowId} not found in Firestore`);
@@ -1361,7 +1446,7 @@
     window.onload = function() {
       console.log('Window loaded, initializing app');
       try {
-        loadDataFromFirestore();
+        // Authentication state change will trigger loadDataFromFirestore
       } catch (err) {
         console.error('Error during initialization:', err.message);
         showError('Error: Failed to initialize application.');
