@@ -8,7 +8,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <!-- Flatpickr CSS and JS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <style>
@@ -56,16 +55,22 @@
       border: 1px solid #ccc;
       min-width: 180px;
     }
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      margin-top: 20px;
+    }
     table {
       width: 100%;
+      min-width: 1200px;
       border-collapse: collapse;
-      margin-top: 20px;
       font-size: 14px;
     }
     th, td {
       border: 1px solid #ddd;
       padding: 12px;
       text-align: left;
+      white-space: nowrap;
     }
     th {
       background-color: #e9ecef;
@@ -276,31 +281,34 @@
       <button onclick="exportTableToExcel()">Export Table</button>
     </div>
 
-    <table id="qaTable">
-      <thead>
-        <tr>
-          <th>Project Name</th>
-          <th>QA Name</th>
-          <th>Testing Phase</th>
-          <th>Total Bugs</th>
-          <th>Functional Bugs</th>
-          <th>HTML Bugs</th>
-          <th>Total Issues</th>
-          <th>Phase Start Date</th>
-          <th>Phase End Date</th>
-          <th>Rejected - Reason</th>
-          <th>Rejected Date</th>
-          <th>Approved (Go Live)</th>
-          <th>Approved Date</th>
-          <th>Not Approved - Reason</th>
-          <th>Not Approved Date</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <!-- Rows will be populated dynamically from Firestore -->
-      </tbody>
-    </table>
+    <div class="table-container">
+      <table id="qaTable">
+        <thead>
+          <tr>
+            <th>Project Name</th>
+            <th>QA Name</th>
+            <th>Testing Phase</th>
+            <th>Total Bugs</th>
+            <th>Functional Bugs</th>
+            <th>HTML Bugs</th>
+            <th>Total Issues</th>
+            <th>Phase Start Date</th>
+            <th>Phase End Date</th>
+            <th>Rejected - Reason</th>
+            <th>Rejected Date</th>
+            <th>Approved (Go Live)</th>
+            <th>Approved Date</th>
+            <th>Not Approved - Reason</th>
+            <th>Not Approved Date</th>
+            <th>Bug Tracker</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Rows will be populated dynamically from Firestore -->
+        </tbody>
+      </table>
+    </div>
 
     <div class="pagination" id="pagination">
       <!-- Pagination buttons will be added dynamically -->
@@ -387,6 +395,7 @@
         approvedDate: "",
         notApprovedReason: "Pending fixes",
         notApprovedDate: "2025-03-31",
+        bugTracker: "JIRA-123",
         timestamp: new Date()
       }
     ];
@@ -544,7 +553,7 @@
       const paginatedRows = rows.slice(start, end);
 
       if (paginatedRows.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="16">No data available</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="17">No data available</td></tr>';
       } else {
         paginatedRows.forEach((row, index) => {
           const globalIndex = start + index;
@@ -571,6 +580,7 @@
             <td>${row.approvedDate || ''}</td>
             <td>${row.notApprovedReason || ''}</td>
             <td>${row.notApprovedDate || ''}</td>
+            <td>${row.bugTracker || ''}</td>
             <td>
               <button class="edit-btn" onclick="editRow(this)">✏️</button>
               <button class="delete-btn" onclick="deleteRow(this)">🗑️</button>
@@ -677,11 +687,12 @@
       console.log('Adding new row');
       const tableBody = document.querySelector('#qaTable tbody');
       const newRow = document.createElement('tr');
-      newRow.innerHTML = '<td></td>'.repeat(15) + 
+      newRow.innerHTML = '<td></td>'.repeat(16) + 
                         '<td>' +
                         '<button class="edit-btn" onclick="editRow(this)">✏️</button>' +
                         '<button class="delete-btn" onclick="deleteRow(this)">🗑️</button>' +
                         '</td>';
+      newRow.setAttribute('data-new', 'true');
       newRow.addEventListener('click', (event) => {
         if (event.target.tagName !== 'BUTTON') {
           const projectName = newRow.cells[0].innerText || '';
@@ -696,7 +707,7 @@
       console.log('Editing row');
       event.stopPropagation();
       const row = button.closest('tr');
-      const cells = Array.from(row.children).slice(0, 15);
+      const cells = Array.from(row.children).slice(0, 16);
 
       datepickers.forEach(dp => dp.destroy());
       datepickers = [];
@@ -724,7 +735,7 @@
         }
       });
 
-      const actionsCell = row.children[15];
+      const actionsCell = row.children[16];
       actionsCell.innerHTML = `
         <button class="save-btn" onclick="saveRow(this)">✅</button>
         <button class="delete-btn" onclick="deleteRow(this)">🗑️</button>
@@ -742,7 +753,8 @@
 
       const row = button.closest('tr');
       const index = row.getAttribute('data-index');
-      const data = Array.from(row.children).slice(0, 15).map(cell => cell.innerText);
+      const isNewRow = row.getAttribute('data-new') === 'true';
+      const data = Array.from(row.children).slice(0, 16).map(cell => cell.innerText);
       const projectRef = db.collection('qaProjects').doc('Project Alpha');
 
       const rowData = {
@@ -751,15 +763,18 @@
         totalIssues: data[6], phaseStart: data[7], phaseEnd: data[8],
         rejectReason: data[9], rejectDate: data[10], approved: data[11],
         approvedDate: data[12], notApprovedReason: data[13], notApprovedDate: data[14],
-        timestamp: new Date()
+        bugTracker: data[15], timestamp: new Date()
       };
 
       projectRef.get().then(doc => {
         let rows = doc.exists ? doc.data().rows || [] : [];
-        if (index !== null) {
+        if (isNewRow) {
+          rows.push(rowData);
+          row.removeAttribute('data-new');
+        } else if (index !== null) {
           rows[parseInt(index)] = rowData;
         } else {
-          rows.push(rowData);
+          throw new Error('Invalid row state: neither new nor indexed');
         }
         return doc.exists ? projectRef.update({ rows }) : projectRef.set({ rows });
       }).then(() => {
@@ -768,13 +783,13 @@
         button.classList.remove('loading');
         button.disabled = false;
 
-        const cells = Array.from(row.children).slice(0, 15);
+        const cells = Array.from(row.children).slice(0, 16);
         cells.forEach(cell => {
           cell.removeAttribute('contenteditable');
           cell.style.backgroundColor = '';
         });
 
-        const actionsCell = row.children[15];
+        const actionsCell = row.children[16];
         actionsCell.innerHTML = `
           <button class="edit-btn" onclick="editRow(this)">✏️</button>
           <button class="delete-btn" onclick="deleteRow(this)">🗑️</button>
