@@ -505,7 +505,6 @@
   <div class="container">
     <div class="auth-container" id="authContainer">
       <p>Please sign in to access the dashboard.</p>
-      <button onclick="signInAnonymously()">Sign In Anonymously</button>
       <div>
         <input type="email" id="emailInput" placeholder="Email">
         <input type="password" id="passwordInput" placeholder="Password">
@@ -655,41 +654,6 @@
       });
     }
 
-    // Handle anonymous authentication
-    function signInAnonymously() {
-      console.log('Attempting anonymous sign-in');
-      auth.signInAnonymously().then(userCredential => {
-        user = userCredential.user;
-        console.log('Signed in anonymously:', user.uid);
-        document.getElementById('authContainer').style.display = 'none';
-        document.getElementById('controls').style.display = 'flex';
-        document.querySelector('.table-container').style.display = 'block';
-        document.querySelector('.add-row-btn').style.display = 'block';
-        loadDataFromFirestore();
-        hideError();
-      }).catch(err => {
-        console.error('Anonymous sign-in failed:', err.code, err.message);
-        let errorMessage = `Failed to sign in: ${err.message}`;
-        if (err.code === 'auth/admin-restricted-operation') {
-          errorMessage = 'Anonymous sign-in is disabled or restricted. Please enable anonymous authentication in Firebase Console (Authentication > Sign-in method > Anonymous).';
-        }
-        showError(errorMessage);
-        // Fallback to sample data in read-only mode
-        console.log('Falling back to sample data due to authentication failure');
-        allRows = sampleData;
-        updateProjectFilter(allRows);
-        updateMilestoneProjectFilter(allRows);
-        populateMilestoneTab(allRows);
-        filterTable();
-        updateChartWithFilter();
-        document.getElementById('authContainer').style.display = 'block';
-        document.getElementById('controls').style.display = 'flex';
-        document.querySelector('.table-container').style.display = 'block';
-        document.querySelector('.add-row-btn').style.display = 'none';
-        document.querySelectorAll('.edit-btn, .delete-btn').forEach(btn => btn.disabled = true);
-      });
-    }
-
     // Handle email/password authentication
     function signInWithEmail() {
       const email = document.getElementById('emailInput').value;
@@ -733,16 +697,12 @@
         document.querySelector('.table-container').style.display = 'none';
         document.querySelector('.add-row-btn').style.display = 'none';
         showError('Please sign in to access the dashboard.');
-        // Load sample data in read-only mode
-        allRows = sampleData;
+        allRows = [];
         updateProjectFilter(allRows);
         updateMilestoneProjectFilter(allRows);
         populateMilestoneTab(allRows);
         filterTable();
         updateChartWithFilter();
-        document.getElementById('controls').style.display = 'flex';
-        document.querySelector('.table-container').style.display = 'block';
-        document.querySelectorAll('.edit-btn, .delete-btn').forEach(btn => btn.disabled = true);
       }
     });
 
@@ -1076,17 +1036,17 @@
       pagination.appendChild(nextButton);
     }
 
-    // Load data from Firestore with fallback
+    // Load data from Firestore
     function loadDataFromFirestore() {
       if (!user) {
-        console.log('No user authenticated, loading sample data');
-        allRows = sampleData;
+        console.log('No user authenticated, clearing data');
+        allRows = [];
         updateProjectFilter(allRows);
         updateMilestoneProjectFilter(allRows);
         populateMilestoneTab(allRows);
         filterTable();
         updateChartWithFilter();
-        showError('Please sign in to access full functionality.');
+        showError('Please sign in to access the dashboard.');
         return;
       }
       console.log('Loading data from Firestore for user:', user.uid);
@@ -1100,7 +1060,7 @@
           }));
           console.log('Loaded rows from Firestore:', allRows.length, allRows.map(r => r.rowId));
         } else {
-          console.log('No valid data in Firestore, using sample data');
+          console.log('No valid data in Firestore, initializing with sample data');
           allRows = sampleData;
           projectRef.set({ rows: sampleData }).then(() => {
             console.log('Sample data saved to Firestore');
@@ -1118,7 +1078,7 @@
       }).catch(err => {
         console.error('Error loading data from Firestore:', err.code, err.message);
         showError(`Error: Unable to load project data. ${err.message}`);
-        allRows = sampleData;
+        allRows = [];
         updateProjectFilter(allRows);
         updateMilestoneProjectFilter(allRows);
         populateMilestoneTab(allRows);
@@ -1343,12 +1303,12 @@
 
       const projectRef = db.collection('qaProjects').doc('Project Alpha');
       projectRef.get().then(doc => {
-        if (!doc.exists) {
-          console.log('Firestore document does not exist, creating with empty rows');
-          return projectRef.set({ rows: [] }).then(() => projectRef.get());
+        if (!doc.exists || !doc.data().rows) {
+          console.log('Firestore document does not exist or has no rows, creating with empty rows');
+          return projectRef.set({ rows: [] }).then(() => {
+            throw new Error(`Row with ID ${rowId} not found in Firestore`);
+          });
         }
-        return doc;
-      }).then(doc => {
         let rows = doc.data().rows || [];
         console.log('Firestore rows before deletion:', rows.length, rows.map(r => r.rowId));
         const rowIndex = rows.findIndex(r => r.rowId === rowId);
@@ -1370,9 +1330,16 @@
         loadDataFromFirestore();
       }).catch(err => {
         console.error('Error deleting row:', err.code, err.message);
-        showError('Failed to delete the row: ' + err.message);
-        button.classList.remove('loading');
-        button.disabled = false;
+        if (err.message.includes('not found in Firestore')) {
+          console.log('Row not found in Firestore, already removed from DOM');
+          button.classList.remove('loading');
+          button.disabled = false;
+          loadDataFromFirestore();
+        } else {
+          showError('Failed to delete the row: ' + err.message);
+          button.classList.remove('loading');
+          button.disabled = false;
+        }
       });
     }
 
