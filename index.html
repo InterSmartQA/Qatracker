@@ -649,7 +649,24 @@
         hideError();
       }).catch(err => {
         console.error('Anonymous sign-in failed:', err.code, err.message);
-        showError(`Failed to sign in: ${err.message}. Please enable anonymous authentication in Firebase Console.`);
+        let errorMessage = `Failed to sign in: ${err.message}`;
+        if (err.code === 'auth/admin-restricted-operation') {
+          errorMessage = 'Anonymous sign-in is restricted. Please enable anonymous authentication in Firebase Console (Authentication > Sign-in method > Anonymous).';
+        }
+        showError(errorMessage);
+        // Fallback to sample data
+        console.log('Falling back to sample data due to authentication failure');
+        allRows = sampleData;
+        updateProjectFilter(allRows);
+        updateMilestoneProjectFilter(allRows);
+        populateMilestoneTab(allRows);
+        filterTable();
+        updateChartWithFilter();
+        document.getElementById('controls').style.display = 'flex';
+        document.querySelector('.table-container').style.display = 'block';
+        // Disable add/edit/delete buttons to prevent Firestore writes
+        document.querySelector('.add-row-btn').style.display = 'none';
+        document.querySelectorAll('.edit-btn, .delete-btn').forEach(btn => btn.disabled = true);
       });
     }
 
@@ -968,6 +985,12 @@
       if (!user) {
         console.log('No user authenticated, skipping data load');
         showError('Please sign in to access data.');
+        allRows = sampleData;
+        updateProjectFilter(allRows);
+        updateMilestoneProjectFilter(allRows);
+        populateMilestoneTab(allRows);
+        filterTable();
+        updateChartWithFilter();
         return;
       }
       console.log('Loading data from Firestore for user:', user.uid);
@@ -986,7 +1009,7 @@
           projectRef.set({ rows: sampleData }).then(() => {
             console.log('Sample data saved to Firestore');
           }).catch(err => {
-            console.error('Error saving sample data:', err.message);
+            console.error('Error saving sample data:', err.code, err.message);
             showError('Error: Failed to initialize Firestore with sample data. ' + err.message);
           });
         }
@@ -1234,7 +1257,9 @@
         console.log('Firestore rows before deletion:', rows.length, rows.map(r => r.rowId));
         const rowIndex = rows.findIndex(r => r.rowId === rowId);
         if (rowIndex === -1) {
-          console.error(`Row with ID ${rowId} not found in Firestore`);
+          console.warn(`Row with ID ${rowId} not found in Firestore, removing from DOM`);
+          row.remove();
+          alert('Row removed from display (not found in Firestore).');
           throw new Error(`Row with ID ${rowId} not found in Firestore`);
         }
         console.log('Found row at index:', rowIndex);
