@@ -5,8 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>QA Project Overview Tracker</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/date-fns"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -472,6 +470,123 @@
       border-radius: 4px;
     }
 
+    /* Timeline Infographic Styles */
+    .timeline-container {
+      position: relative;
+      padding: 20px 0;
+      margin-top: 20px;
+      max-width: 800px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .timeline-line {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 4px;
+      background: linear-gradient(to bottom, #3b82f6, #10b981);
+      height: 100%;
+      border-radius: 2px;
+    }
+
+    .timeline-item {
+      position: relative;
+      margin: 40px 0;
+      display: flex;
+      align-items: center;
+      opacity: 0;
+      animation: fadeIn 0.5s ease forwards;
+    }
+
+    .timeline-item:nth-child(odd) {
+      flex-direction: row;
+    }
+
+    .timeline-item:nth-child(even) {
+      flex-direction: row-reverse;
+    }
+
+    .timeline-bubble {
+      width: 300px;
+      padding: 15px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      position: relative;
+      border: 2px solid;
+      transition: transform 0.3s ease;
+    }
+
+    .timeline-bubble.started {
+      border-color: #3b82f6;
+    }
+
+    .timeline-bubble.completed {
+      border-color: #10b981;
+    }
+
+    .timeline-bubble:hover {
+      transform: scale(1.02);
+    }
+
+    .timeline-bubble h4 {
+      margin: 0 0 10px;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--primary);
+    }
+
+    .timeline-bubble p {
+      margin: 5px 0;
+      font-size: 14px;
+    }
+
+    .timeline-bubble p strong {
+      display: inline-block;
+      min-width: 100px;
+      font-weight: 500;
+    }
+
+    .timeline-connector {
+      flex: 1;
+      height: 2px;
+      background: #94a3b8;
+      position: relative;
+    }
+
+    .timeline-connector::after {
+      content: '';
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      background: #94a3b8;
+      border-radius: 50%;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    .timeline-item:nth-child(odd) .timeline-connector::after {
+      right: -7px;
+    }
+
+    .timeline-item:nth-child(even) .timeline-connector::after {
+      left: -7px;
+    }
+
+    .timeline-item:nth-child(odd) .timeline-bubble {
+      margin-right: 20px;
+    }
+
+    .timeline-item:nth-child(even) .timeline-bubble {
+      margin-left: 20px;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
     @media (max-width: 768px) {
       .container {
         padding: 20px;
@@ -494,6 +609,28 @@
       }
       header img {
         height: 40px;
+      }
+      .timeline-container {
+        padding: 10px 0;
+      }
+      .timeline-line {
+        left: 20px;
+        transform: none;
+      }
+      .timeline-item {
+        flex-direction: row !important;
+        margin: 20px 0;
+      }
+      .timeline-bubble {
+        width: 100%;
+        margin-left: 40px !important;
+        margin-right: 0 !important;
+      }
+      .timeline-connector {
+        width: 20px;
+      }
+      .timeline-connector::after {
+        left: -7px !important;
       }
     }
   </style>
@@ -579,11 +716,11 @@
       <h3 onclick="toggleMilestone('milestoneTab')">All Projects Milestone Overview</h3>
       <div class="milestone-content">
         <div class="controls">
-          <select id="milestoneProjectFilter" onchange="renderMilestoneChart()">
+          <select id="milestoneProjectFilter" onchange="renderMilestoneInfographic()">
             <option value="">Select a Project</option>
           </select>
         </div>
-        <canvas id="milestoneChart" height="150"></canvas>
+        <div id="milestoneTimeline" class="timeline-container"></div>
         <div id="milestoneTabList"></div>
       </div>
     </div>
@@ -630,7 +767,6 @@
 
     // Global variables
     let bugChartInstance = null;
-    let milestoneChartInstance = null;
     let allRows = [];
     const rowsPerPage = 15;
     let currentPage = 1;
@@ -704,7 +840,7 @@
         allRows = [];
         updateProjectFilter(allRows);
         updateMilestoneProjectFilter(allRows);
-        renderMilestoneChart();
+        renderMilestoneInfographic();
         filterTable();
         updateChartWithFilter();
       }
@@ -850,149 +986,107 @@
       });
     }
 
-    // Function to render the milestone chart
-    function renderMilestoneChart() {
-      console.log('Rendering milestone chart');
+    // Function to render the milestone infographic
+    function renderMilestoneInfographic() {
+      console.log('Rendering milestone infographic');
       const selectedProject = document.getElementById('milestoneProjectFilter').value;
-      const milestoneChartCanvas = document.getElementById('milestoneChart');
+      const timelineContainer = document.getElementById('milestoneTimeline');
       const milestoneTabList = document.getElementById('milestoneTabList');
 
       // Clear previous content
+      timelineContainer.innerHTML = '';
       milestoneTabList.innerHTML = '';
-      if (milestoneChartInstance) {
-        milestoneChartInstance.destroy();
-        milestoneChartInstance = null;
-      }
 
       if (!selectedProject) {
-        milestoneChartCanvas.style.display = 'none';
-        milestoneTabList.innerHTML = '<p>Please select a project to view the milestone chart.</p>';
+        timelineContainer.style.display = 'none';
+        milestoneTabList.innerHTML = '<p>Please select a project to view the milestone timeline.</p>';
         return;
       }
 
-      milestoneChartCanvas.style.display = 'block';
+      timelineContainer.style.display = 'block';
       const rows = allRows.filter(row => (row.projectName || '').trim() === selectedProject);
       
       if (rows.length === 0) {
-        milestoneChartCanvas.style.display = 'none';
+        timelineContainer.style.display = 'none';
         milestoneTabList.innerHTML = '<p>No milestones available for this project.</p>';
         return;
       }
 
       try {
-        // Prepare data for the chart
-        const milestones = rows.map(row => {
-          let status = 'Started';
-          if (row.approved === 'Yes' && row.approvedDate) {
-            status = 'Completed';
-          } else if (row.rejectReason && row.rejectDate) {
-            status = 'Rejected';
+        // Prepare milestones
+        const milestones = [];
+        rows.forEach(row => {
+          // Add "Started" milestone
+          if (row.phaseStart && !isNaN(new Date(row.phaseStart))) {
+            milestones.push({
+              date: new Date(row.phaseStart),
+              phase: row.testingPhase || 'Unnamed Phase',
+              status: 'Started',
+              qaName: row.qaName || 'N/A',
+              projectName: row.projectName || 'N/A'
+            });
           }
-          return {
-            task: row.testingPhase || 'Unnamed Phase',
-            start: row.phaseStart ? new Date(row.phaseStart) : null,
-            end: row.phaseEnd ? new Date(row.phaseEnd) : null,
-            status: status,
-            qaName: row.qaName || 'N/A',
-            projectName: row.projectName || 'N/A'
-          };
-        }).filter(m => m.start && !isNaN(m.start) && m.end && !isNaN(m.end));
+
+          // Add "Completed" milestone if approved
+          if (row.approved === 'Yes' && row.approvedDate && !isNaN(new Date(row.approvedDate))) {
+            milestones.push({
+              date: new Date(row.approvedDate),
+              phase: row.testingPhase || 'Unnamed Phase',
+              status: 'Completed',
+              qaName: row.qaName || 'N/A',
+              projectName: row.projectName || 'N/A'
+            });
+          }
+        });
 
         if (milestones.length === 0) {
-          milestoneChartCanvas.style.display = 'none';
+          timelineContainer.style.display = 'none';
           milestoneTabList.innerHTML = '<p>No valid milestones with dates available for this project.</p>';
           return;
         }
 
-        // Sort milestones by start date
-        milestones.sort((a, b) => a.start - b.start);
+        // Sort milestones by date
+        milestones.sort((a, b) => a.date - b.date);
 
-        // Find the earliest and latest dates for the x-axis
-        const allDates = milestones.flatMap(m => [m.start, m.end]);
-        const minDate = new Date(Math.min(...allDates));
-        const maxDate = new Date(Math.max(...allDates));
-        minDate.setDate(minDate.getDate() - 5); // Add padding
-        maxDate.setDate(maxDate.getDate() + 5);
+        // Create the timeline line
+        const timelineLine = document.createElement('div');
+        timelineLine.className = 'timeline-line';
+        timelineContainer.appendChild(timelineLine);
 
-        const labels = milestones.map(m => m.task);
-        const datasets = [
-          {
-            label: 'Milestone Duration',
-            data: milestones.map(m => ({
-              x: [m.start, m.end],
-              y: m.task
-            })),
-            backgroundColor: milestones.map(m => m.status === 'Completed' ? '#10b981' : m.status === 'Rejected' ? '#ef4444' : '#3b82f6'),
-            borderColor: milestones.map(m => m.status === 'Completed' ? '#059669' : m.status === 'Rejected' ? '#dc2626' : '#2563eb'),
-            borderWidth: 1
-          }
-        ];
+        // Create timeline items
+        milestones.forEach((milestone, index) => {
+          const item = document.createElement('div');
+          item.className = 'timeline-item';
+          item.style.animationDelay = `${index * 0.2}s`;
 
-        const ctx = milestoneChartCanvas.getContext('2d');
-        milestoneChartInstance = new Chart(ctx, {
-          type: 'bar',
-          data: {
-            labels: labels,
-            datasets: datasets
-          },
-          options: {
-            indexAxis: 'y',
-            responsive: true,
-            plugins: {
-              legend: { display: false },
-              title: {
-                display: true,
-                text: `Milestone Timeline for ${selectedProject}`,
-                font: { size: 18, family: 'Inter' }
-              },
-              tooltip: {
-                callbacks: {
-                  label: function(context) {
-                    const milestone = milestones[context.dataIndex];
-                    return [
-                      `Task: ${milestone.task}`,
-                      `Start: ${milestone.start.toISOString().split('T')[0]}`,
-                      `End: ${milestone.end.toISOString().split('T')[0]}`,
-                      `Status: ${milestone.status}`,
-                      `QA: ${milestone.qaName}`,
-                      `Project: ${milestone.projectName}`
-                    ];
-                  }
-                }
-              }
-            },
-            scales: {
-              x: {
-                type: 'time',
-                time: {
-                  unit: 'day',
-                  tooltipFormat: 'yyyy-MM-dd',
-                  displayFormats: { day: 'MMM dd' }
-                },
-                min: minDate,
-                max: maxDate,
-                title: {
-                  display: true,
-                  text: 'Date',
-                  font: { size: 14, family: 'Inter' }
-                },
-                grid: { color: '#e2e8f0' }
-              },
-              y: {
-                title: {
-                  display: true,
-                  text: 'Tasks',
-                  font: { size: 14, family: 'Inter' }
-                },
-                grid: { display: false }
-              }
-            }
-          }
+          const bubble = document.createElement('div');
+          bubble.className = `timeline-bubble ${milestone.status.toLowerCase()}`;
+          bubble.innerHTML = `
+            <h4>${milestone.date.toISOString().split('T')[0]}</h4>
+            <p><strong>Phase:</strong> ${milestone.phase}</p>
+            <p><strong>Status:</strong> ${milestone.status}</p>
+            <p><strong>QA:</strong> ${milestone.qaName}</p>
+            <p><strong>Project:</strong> ${milestone.projectName}</p>
+          `;
+
+          const connector = document.createElement('div');
+          connector.className = 'timeline-connector';
+
+          item.appendChild(bubble);
+          item.appendChild(connector);
+          timelineContainer.appendChild(item);
         });
+
+        // Adjust the height of the timeline line
+        const lastItem = timelineContainer.lastChild;
+        if (lastItem) {
+          const height = lastItem.offsetTop + lastItem.offsetHeight - timelineContainer.offsetTop;
+          timelineLine.style.height = `${height}px`;
+        }
       } catch (err) {
-        console.error('Error rendering milestone chart:', err.message);
-        milestoneChartCanvas.style.display = 'none';
-        milestoneTabList.innerHTML = '<p>Error rendering milestone chart. Please check the data and try again.</p>';
+        console.error('Error rendering milestone infographic:', err.message);
+        timelineContainer.style.display = 'none';
+        milestoneTabList.innerHTML = '<p>Error rendering milestone timeline. Please check the data and try again.</p>';
       }
     }
 
@@ -1119,7 +1213,7 @@
         allRows = [];
         updateProjectFilter(allRows);
         updateMilestoneProjectFilter(allRows);
-        renderMilestoneChart();
+        renderMilestoneInfographic();
         filterTable();
         updateChartWithFilter();
         showError('Please sign in to access the dashboard.');
@@ -1147,7 +1241,7 @@
         }
         updateProjectFilter(allRows);
         updateMilestoneProjectFilter(allRows);
-        renderMilestoneChart();
+        renderMilestoneInfographic();
         filterTable();
         updateChartWithFilter();
         hideError();
@@ -1157,7 +1251,7 @@
         allRows = [];
         updateProjectFilter(allRows);
         updateMilestoneProjectFilter(allRows);
-        renderMilestoneChart();
+        renderMilestoneInfographic();
         filterTable();
         updateChartWithFilter();
       });
@@ -1412,7 +1506,7 @@
         
         updateProjectFilter(allRows);
         updateMilestoneProjectFilter(allRows);
-        renderMilestoneChart();
+        renderMilestoneInfographic();
         filterTable();
         updateChartWithFilter();
       }).catch(err => {
