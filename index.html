@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>QA Project Overview Tracker</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/date-fns"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -577,10 +579,11 @@
       <h3 onclick="toggleMilestone('milestoneTab')">All Projects Milestone Overview</h3>
       <div class="milestone-content">
         <div class="controls">
-          <select id="milestoneProjectFilter" onchange="populateMilestoneTabWithFilter()">
-            <option value="">All Projects</option>
+          <select id="milestoneProjectFilter" onchange="renderMilestoneChart()">
+            <option value="">Select a Project</option>
           </select>
         </div>
+        <canvas id="milestoneChart" height="150"></canvas>
         <div id="milestoneTabList"></div>
       </div>
     </div>
@@ -627,6 +630,7 @@
 
     // Global variables
     let bugChartInstance = null;
+    let milestoneChartInstance = null;
     let allRows = [];
     const rowsPerPage = 15;
     let currentPage = 1;
@@ -700,7 +704,7 @@
         allRows = [];
         updateProjectFilter(allRows);
         updateMilestoneProjectFilter(allRows);
-        populateMilestoneTab(allRows);
+        renderMilestoneChart();
         filterTable();
         updateChartWithFilter();
       }
@@ -802,13 +806,12 @@
       element.classList.toggle('collapsed');
     }
 
-    // Function to update the project filter dropdown with proper duplicate handling
+    // Function to update the project filter dropdown
     function updateProjectFilter(rows) {
       console.log('Updating project filter with rows:', rows.length);
       const projectFilter = document.getElementById('projectFilter');
       projectFilter.innerHTML = '<option value="">Filter by Project</option>';
       
-      // Normalize project names: trim whitespace and convert to lowercase for comparison
       const projectNames = [...new Set(rows
         .map(row => {
           const name = row.projectName || '';
@@ -825,13 +828,12 @@
       });
     }
 
-    // Function to update the milestone project filter dropdown with proper duplicate handling
+    // Function to update the milestone project filter dropdown
     function updateMilestoneProjectFilter(rows) {
       console.log('Updating milestone project filter with rows:', rows.length);
       const milestoneProjectFilter = document.getElementById('milestoneProjectFilter');
-      milestoneProjectFilter.innerHTML = '<option value="">All Projects</option>';
+      milestoneProjectFilter.innerHTML = '<option value="">Select a Project</option>';
       
-      // Normalize project names: trim whitespace and convert to lowercase for comparison
       const projectNames = [...new Set(rows
         .map(row => {
           const name = row.projectName || '';
@@ -848,12 +850,150 @@
       });
     }
 
-    // Function to populate the Milestone Tab with filter
-    function populateMilestoneTabWithFilter() {
-      console.log('Populating milestone tab with filter');
+    // Function to render the milestone chart
+    function renderMilestoneChart() {
+      console.log('Rendering milestone chart');
       const selectedProject = document.getElementById('milestoneProjectFilter').value;
-      const rows = selectedProject ? allRows.filter(row => (row.projectName || '').trim() === selectedProject) : allRows;
-      populateMilestoneTab(rows);
+      const milestoneChartCanvas = document.getElementById('milestoneChart');
+      const milestoneTabList = document.getElementById('milestoneTabList');
+
+      // Clear previous content
+      milestoneTabList.innerHTML = '';
+      if (milestoneChartInstance) {
+        milestoneChartInstance.destroy();
+        milestoneChartInstance = null;
+      }
+
+      if (!selectedProject) {
+        milestoneChartCanvas.style.display = 'none';
+        milestoneTabList.innerHTML = '<p>Please select a project to view the milestone chart.</p>';
+        return;
+      }
+
+      milestoneChartCanvas.style.display = 'block';
+      const rows = allRows.filter(row => (row.projectName || '').trim() === selectedProject);
+      
+      if (rows.length === 0) {
+        milestoneChartCanvas.style.display = 'none';
+        milestoneTabList.innerHTML = '<p>No milestones available for this project.</p>';
+        return;
+      }
+
+      try {
+        // Prepare data for the chart
+        const milestones = rows.map(row => {
+          let status = 'Started';
+          if (row.approved === 'Yes' && row.approvedDate) {
+            status = 'Completed';
+          } else if (row.rejectReason && row.rejectDate) {
+            status = 'Rejected';
+          }
+          return {
+            task: row.testingPhase || 'Unnamed Phase',
+            start: row.phaseStart ? new Date(row.phaseStart) : null,
+            end: row.phaseEnd ? new Date(row.phaseEnd) : null,
+            status: status,
+            qaName: row.qaName || 'N/A',
+            projectName: row.projectName || 'N/A'
+          };
+        }).filter(m => m.start && !isNaN(m.start) && m.end && !isNaN(m.end));
+
+        if (milestones.length === 0) {
+          milestoneChartCanvas.style.display = 'none';
+          milestoneTabList.innerHTML = '<p>No valid milestones with dates available for this project.</p>';
+          return;
+        }
+
+        // Sort milestones by start date
+        milestones.sort((a, b) => a.start - b.start);
+
+        // Find the earliest and latest dates for the x-axis
+        const allDates = milestones.flatMap(m => [m.start, m.end]);
+        const minDate = new Date(Math.min(...allDates));
+        const maxDate = new Date(Math.max(...allDates));
+        minDate.setDate(minDate.getDate() - 5); // Add padding
+        maxDate.setDate(maxDate.getDate() + 5);
+
+        const labels = milestones.map(m => m.task);
+        const datasets = [
+          {
+            label: 'Milestone Duration',
+            data: milestones.map(m => ({
+              x: [m.start, m.end],
+              y: m.task
+            })),
+            backgroundColor: milestones.map(m => m.status === 'Completed' ? '#10b981' : m.status === 'Rejected' ? '#ef4444' : '#3b82f6'),
+            borderColor: milestones.map(m => m.status === 'Completed' ? '#059669' : m.status === 'Rejected' ? '#dc2626' : '#2563eb'),
+            borderWidth: 1
+          }
+        ];
+
+        const ctx = milestoneChartCanvas.getContext('2d');
+        milestoneChartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: datasets
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            plugins: {
+              legend: { display: false },
+              title: {
+                display: true,
+                text: `Milestone Timeline for ${selectedProject}`,
+                font: { size: 18, family: 'Inter' }
+              },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    const milestone = milestones[context.dataIndex];
+                    return [
+                      `Task: ${milestone.task}`,
+                      `Start: ${milestone.start.toISOString().split('T')[0]}`,
+                      `End: ${milestone.end.toISOString().split('T')[0]}`,
+                      `Status: ${milestone.status}`,
+                      `QA: ${milestone.qaName}`,
+                      `Project: ${milestone.projectName}`
+                    ];
+                  }
+                }
+              }
+            },
+            scales: {
+              x: {
+                type: 'time',
+                time: {
+                  unit: 'day',
+                  tooltipFormat: 'yyyy-MM-dd',
+                  displayFormats: { day: 'MMM dd' }
+                },
+                min: minDate,
+                max: maxDate,
+                title: {
+                  display: true,
+                  text: 'Date',
+                  font: { size: 14, family: 'Inter' }
+                },
+                grid: { color: '#e2e8f0' }
+              },
+              y: {
+                title: {
+                  display: true,
+                  text: 'Tasks',
+                  font: { size: 14, family: 'Inter' }
+                },
+                grid: { display: false }
+              }
+            }
+          }
+        });
+      } catch (err) {
+        console.error('Error rendering milestone chart:', err.message);
+        milestoneChartCanvas.style.display = 'none';
+        milestoneTabList.innerHTML = '<p>Error rendering milestone chart. Please check the data and try again.</p>';
+      }
     }
 
     // Function to calculate days between two dates
@@ -865,80 +1005,6 @@
       const diffTime = end - start;
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       return diffDays >= 0 ? diffDays : 'N/A';
-    }
-
-    // Function to populate the Milestone Tab
-    function populateMilestoneTab(rows) {
-      console.log('Populating milestone tab with rows:', rows.length);
-      const milestoneTabList = document.getElementById('milestoneTabList');
-      milestoneTabList.innerHTML = '';
-
-      const projects = {};
-      rows.forEach(row => {
-        const projectName = (row.projectName || 'Unnamed Project').trim();
-        if (!projects[projectName]) {
-          projects[projectName] = [];
-        }
-        projects[projectName].push(row);
-      });
-
-      for (const projectName in projects) {
-        const projectRows = projects[projectName];
-        projectRows.sort((a, b) => {
-          const dateA = a.phaseStart ? new Date(a.phaseStart) : new Date(0);
-          const dateB = b.phaseStart ? new Date(b.phaseStart) : new Date(0);
-          return dateA - dateB;
-        });
-
-        const validStartDates = projectRows
-          .map(row => row.phaseStart)
-          .filter(date => date && !isNaN(new Date(date)))
-          .sort((a, b) => new Date(a) - new Date(b));
-        const validEndDates = projectRows
-          .map(row => row.phaseEnd)
-          .filter(date => date && !isNaN(new Date(date)))
-          .sort((a, b) => new Date(b) - new Date(a));
-
-        const projectStart = validStartDates.length > 0 ? validStartDates[0] : 'N/A';
-        const projectEnd = validEndDates.length > 0 ? validEndDates[validEndDates.length - 1] : 'N/A';
-        const totalDays = calculateDaysBetween(projectStart, projectEnd);
-
-        const projectDiv = document.createElement('div');
-        projectDiv.classList.add('milestone-box');
-        projectDiv.innerHTML = `
-          <h3 onclick="toggleMilestone('${projectName.replace(/\s+/g, '-')}-milestone')">${projectName}</h3>
-          <div class="milestone-content" id="${projectName.replace(/\s+/g, '-')}-milestone">
-            <div class="milestone-summary">
-              <div><strong>Project Start:</strong> ${projectStart}</div>
-              <div><strong>Project End:</strong> ${projectEnd}</div>
-              <div><strong>Total Days:</strong> ${totalDays}</div>
-            </div>
-          </div>
-        `;
-
-        const milestoneContent = projectDiv.querySelector('.milestone-content');
-        projectRows.forEach(row => {
-          const phaseDays = calculateDaysBetween(row.phaseStart, row.phaseEnd);
-          const phaseDiv = document.createElement('div');
-          phaseDiv.classList.add('milestone-entry');
-          phaseDiv.innerHTML = `
-            <div><strong>Phase:</strong> ${row.testingPhase || 'N/A'}</div>
-            <div><strong>Total Bugs:</strong> ${row.totalBugs || '0'}</div>
-            <div><strong>Start Date:</strong> ${row.phaseStart || 'N/A'}</div>
-            <div><strong>End Date:</strong> ${row.phaseEnd || 'N/A'}</div>
-            <div><strong>Phase Days:</strong> ${phaseDays}</div>
-            <div><strong>Rejected:</strong> ${row.rejectReason ? row.rejectReason + ' on ' + (row.rejectDate || 'N/A') : 'N/A'}</div>
-            <div><strong>Approved:</strong> ${row.approvedDate || 'N/A'}</div>
-          `;
-          milestoneContent.appendChild(phaseDiv);
-        });
-
-        milestoneTabList.appendChild(projectDiv);
-      }
-
-      if (Object.keys(projects).length === 0) {
-        milestoneTabList.innerHTML = '<p>No project milestones to display.</p>';
-      }
     }
 
     // Function to render table rows with pagination
@@ -1053,7 +1119,7 @@
         allRows = [];
         updateProjectFilter(allRows);
         updateMilestoneProjectFilter(allRows);
-        populateMilestoneTab(allRows);
+        renderMilestoneChart();
         filterTable();
         updateChartWithFilter();
         showError('Please sign in to access the dashboard.');
@@ -1081,7 +1147,7 @@
         }
         updateProjectFilter(allRows);
         updateMilestoneProjectFilter(allRows);
-        populateMilestoneTab(allRows);
+        renderMilestoneChart();
         filterTable();
         updateChartWithFilter();
         hideError();
@@ -1091,7 +1157,7 @@
         allRows = [];
         updateProjectFilter(allRows);
         updateMilestoneProjectFilter(allRows);
-        populateMilestoneTab(allRows);
+        renderMilestoneChart();
         filterTable();
         updateChartWithFilter();
       });
@@ -1346,7 +1412,7 @@
         
         updateProjectFilter(allRows);
         updateMilestoneProjectFilter(allRows);
-        populateMilestoneTab(allRows);
+        renderMilestoneChart();
         filterTable();
         updateChartWithFilter();
       }).catch(err => {
@@ -1521,7 +1587,7 @@
           }
         });
       } catch (err) {
-        console.error('Error rendering chart:', err.message);
+        console.error('Error rendering bug chart:', err.message);
       }
     }
 
