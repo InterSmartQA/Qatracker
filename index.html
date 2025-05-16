@@ -516,6 +516,9 @@
       position: relative;
       border: 2px solid;
       transition: transform 0.3s ease;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
     }
 
     .timeline-bubble.started {
@@ -528,6 +531,23 @@
 
     .timeline-bubble:hover {
       transform: scale(1.02);
+    }
+
+    .timeline-bubble .icon {
+      font-size: 20px;
+      margin-top: 5px;
+    }
+
+    .timeline-bubble.started .icon {
+      color: #3b82f6;
+    }
+
+    .timeline-bubble.completed .icon {
+      color: #10b981;
+    }
+
+    .timeline-bubble .content {
+      flex: 1;
     }
 
     .timeline-bubble h4 {
@@ -1039,6 +1059,13 @@
           }
         });
 
+        // Debug: Log the milestones to verify
+        console.log('Generated milestones for', selectedProject, ':', milestones.map(m => ({
+          date: m.date.toISOString().split('T')[0],
+          status: m.status,
+          phase: m.phase
+        })));
+
         if (milestones.length === 0) {
           timelineContainer.style.display = 'none';
           milestoneTabList.innerHTML = '<p>No valid milestones with dates available for this project.</p>';
@@ -1062,11 +1089,14 @@
           const bubble = document.createElement('div');
           bubble.className = `timeline-bubble ${milestone.status.toLowerCase()}`;
           bubble.innerHTML = `
-            <h4>${milestone.date.toISOString().split('T')[0]}</h4>
-            <p><strong>Phase:</strong> ${milestone.phase}</p>
-            <p><strong>Status:</strong> ${milestone.status}</p>
-            <p><strong>QA:</strong> ${milestone.qaName}</p>
-            <p><strong>Project:</strong> ${milestone.projectName}</p>
+            <i class="fas ${milestone.status === 'Started' ? 'fa-play' : 'fa-check-circle'} icon"></i>
+            <div class="content">
+              <h4>${milestone.date.toISOString().split('T')[0]}</h4>
+              <p><strong>Phase:</strong> ${milestone.phase}</p>
+              <p><strong>Status:</strong> ${milestone.status}</p>
+              <p><strong>QA:</strong> ${milestone.qaName}</p>
+              <p><strong>Project:</strong> ${milestone.projectName}</p>
+            </div>
           `;
 
           const connector = document.createElement('div');
