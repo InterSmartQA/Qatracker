@@ -802,16 +802,20 @@
       element.classList.toggle('collapsed');
     }
 
-    // Function to update the project filter dropdown
+    // Function to update the project filter dropdown with proper duplicate handling
     function updateProjectFilter(rows) {
       console.log('Updating project filter with rows:', rows.length);
       const projectFilter = document.getElementById('projectFilter');
       projectFilter.innerHTML = '<option value="">Filter by Project</option>';
       
+      // Normalize project names: trim whitespace and convert to lowercase for comparison
       const projectNames = [...new Set(rows
-        .map(row => row.projectName)
-        .filter(name => name && name.trim() !== '')
-      )].sort();
+        .map(row => {
+          const name = row.projectName || '';
+          return name.trim();
+        })
+        .filter(name => name !== '')
+      )].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
 
       projectNames.forEach(name => {
         const option = document.createElement('option');
@@ -821,16 +825,20 @@
       });
     }
 
-    // Function to update the milestone project filter dropdown
+    // Function to update the milestone project filter dropdown with proper duplicate handling
     function updateMilestoneProjectFilter(rows) {
       console.log('Updating milestone project filter with rows:', rows.length);
       const milestoneProjectFilter = document.getElementById('milestoneProjectFilter');
       milestoneProjectFilter.innerHTML = '<option value="">All Projects</option>';
       
+      // Normalize project names: trim whitespace and convert to lowercase for comparison
       const projectNames = [...new Set(rows
-        .map(row => row.projectName)
-        .filter(name => name && name.trim() !== '')
-      )].sort();
+        .map(row => {
+          const name = row.projectName || '';
+          return name.trim();
+        })
+        .filter(name => name !== '')
+      )].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
 
       projectNames.forEach(name => {
         const option = document.createElement('option');
@@ -844,7 +852,7 @@
     function populateMilestoneTabWithFilter() {
       console.log('Populating milestone tab with filter');
       const selectedProject = document.getElementById('milestoneProjectFilter').value;
-      const rows = selectedProject ? allRows.filter(row => row.projectName === selectedProject) : allRows;
+      const rows = selectedProject ? allRows.filter(row => (row.projectName || '').trim() === selectedProject) : allRows;
       populateMilestoneTab(rows);
     }
 
@@ -867,7 +875,7 @@
 
       const projects = {};
       rows.forEach(row => {
-        const projectName = row.projectName || 'Unnamed Project';
+        const projectName = (row.projectName || 'Unnamed Project').trim();
         if (!projects[projectName]) {
           projects[projectName] = [];
         }
@@ -1270,7 +1278,6 @@
       });
     }
 
-    // Updated deleteRow function to fix deletion issue
     function deleteRow(button) {
       if (!user) {
         showError('Please sign in to delete rows.');
@@ -1295,7 +1302,6 @@
       }
       console.log('Attempting to delete row with ID:', rowId);
 
-      // Handle unsaved new rows
       if (row.getAttribute('data-new') === 'true') {
         console.log('Removing unsaved new row');
         row.remove();
@@ -1308,7 +1314,6 @@
 
       const projectRef = db.collection('qaProjects').doc('Project Alpha');
       
-      // Use Firestore transaction for safer updates
       db.runTransaction(async transaction => {
         const doc = await transaction.get(projectRef);
         
@@ -1321,18 +1326,15 @@
         let rows = doc.data().rows || [];
         console.log('Firestore rows before deletion:', rows.length, rows.map(r => r.rowId));
 
-        // Find the row to delete
         const rowIndex = rows.findIndex(r => r.rowId === rowId);
         if (rowIndex === -1) {
           console.warn(`Row with ID ${rowId} not found in Firestore`);
           throw new Error(`Row with ID ${rowId} not found in Firestore`);
         }
 
-        // Remove the row
         rows.splice(rowIndex, 1);
         console.log('Firestore rows after deletion:', rows.length, rows.map(r => r.rowId));
 
-        // Update Firestore
         transaction.set(projectRef, { rows }, { merge: true });
         return rows;
       }).then(updatedRows => {
@@ -1342,7 +1344,6 @@
         button.classList.remove('loading');
         button.disabled = false;
         
-        // Update UI
         updateProjectFilter(allRows);
         updateMilestoneProjectFilter(allRows);
         populateMilestoneTab(allRows);
@@ -1375,7 +1376,7 @@
       const rejectedValue = document.getElementById('rejectedFilter').value;
 
       const filteredRows = allRows.filter(row => {
-        const project = (row.projectName || '').toLowerCase();
+        const project = (row.projectName || '').trim().toLowerCase();
         const qa = (row.qaName || '').toLowerCase();
         const phaseStart = row.phaseStart;
         const approved = (row.approved || '').toLowerCase();
@@ -1431,7 +1432,7 @@
       const rejectedValue = document.getElementById('rejectedFilter').value;
 
       const filteredRows = allRows.filter(row => {
-        const project = (row.projectName || '').toLowerCase();
+        const project = (row.projectName || '').trim().toLowerCase();
         const qa = (row.qaName || '').toLowerCase();
         const phaseStart = row.phaseStart;
         const approved = (row.approved || '').toLowerCase();
