@@ -802,15 +802,17 @@
       element.classList.toggle('collapsed');
     }
 
-    // Function to update the project filter dropdown
+    // Function to update the project filter dropdown (Fix for Issue 1)
     function updateProjectFilter(rows) {
       console.log('Updating project filter with rows:', rows.length);
       const projectFilter = document.getElementById('projectFilter');
       projectFilter.innerHTML = '<option value="">Filter by Project</option>';
       
+      // Use Set to ensure unique project names
       const projectNames = [...new Set(rows
         .map(row => row.projectName)
-        .filter(name => name && name.trim() !== ''))];
+        .filter(name => name && name.trim() !== '')
+      )].sort(); // Sort for consistency
 
       projectNames.forEach(name => {
         const option = document.createElement('option');
@@ -820,15 +822,17 @@
       });
     }
 
-    // Function to update the milestone project filter dropdown
+    // Function to update the milestone project filter dropdown (Fix for Issue 1)
     function updateMilestoneProjectFilter(rows) {
       console.log('Updating milestone project filter with rows:', rows.length);
       const milestoneProjectFilter = document.getElementById('milestoneProjectFilter');
       milestoneProjectFilter.innerHTML = '<option value="">All Projects</option>';
       
+      // Use Set to ensure unique project names
       const projectNames = [...new Set(rows
         .map(row => row.projectName)
-        .filter(name => name && name.trim() !== ''))];
+        .filter(name => name && name.trim() !== '')
+      )].sort(); // Sort for consistency
 
       projectNames.forEach(name => {
         const option = document.createElement('option');
@@ -1181,6 +1185,7 @@
       }
     }
 
+    // Fixed saveRow function (Fix for Issue 2)
     function saveRow(button) {
       if (!user) {
         showError('Please sign in to save rows.');
@@ -1236,13 +1241,15 @@
 
       const projectRef = db.collection('qaProjects').doc('Project Alpha');
       projectRef.get().then(doc => {
-        let rows = doc.exists && doc.data().rows ? doc.data().rows : [];
+        let rows = doc.exists && doc.data().rows ? [...doc.data().rows] : [];
         console.log('Current Firestore rows:', rows.length, rows.map(r => r.rowId));
+        
         if (isNewRow) {
           console.log('Adding new row to Firestore');
           rows.push(rowData);
           row.removeAttribute('data-new');
         } else {
+          // Find the row by rowId and update it
           const rowIndex = rows.findIndex(r => r.rowId === rowId);
           if (rowIndex === -1) {
             console.error(`Row with ID ${rowId} not found in Firestore`);
@@ -1251,7 +1258,9 @@
           console.log('Updating existing row at index:', rowIndex);
           rows[rowIndex] = rowData;
         }
-        return doc.exists ? projectRef.update({ rows }) : projectRef.set({ rows });
+        
+        // Update Firestore with the new rows array
+        return projectRef.set({ rows }, { merge: true });
       }).then(() => {
         console.log('Row saved successfully');
         alert('Row saved successfully!');
@@ -1268,6 +1277,7 @@
       });
     }
 
+    // Fixed deleteRow function (Fix for Issue 3)
     function deleteRow(button) {
       if (!user) {
         showError('Please sign in to delete rows.');
@@ -1309,19 +1319,20 @@
             throw new Error(`Row with ID ${rowId} not found in Firestore`);
           });
         }
-        let rows = doc.data().rows || [];
+        let rows = [...doc.data().rows] || [];
         console.log('Firestore rows before deletion:', rows.length, rows.map(r => r.rowId));
-        const rowIndex = rows.findIndex(r => r.rowId === rowId);
-        if (rowIndex === -1) {
+        
+        // Filter out the row to delete
+        const updatedRows = rows.filter(r => r.rowId !== rowId);
+        if (updatedRows.length === rows.length) {
           console.warn(`Row with ID ${rowId} not found in Firestore, removing from DOM`);
           row.remove();
           alert('Row removed from display (not found in Firestore).');
           throw new Error(`Row with ID ${rowId} not found in Firestore`);
         }
-        console.log('Found row at index:', rowIndex);
-        rows.splice(rowIndex, 1);
-        console.log('Firestore rows after deletion:', rows.length);
-        return projectRef.update({ rows });
+        
+        console.log('Firestore rows after deletion:', updatedRows.length);
+        return projectRef.set({ rows: updatedRows }, { merge: true });
       }).then(() => {
         console.log('Row deleted successfully');
         alert('Row deleted successfully!');
