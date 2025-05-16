@@ -485,7 +485,7 @@
       left: 50%;
       transform: translateX(-50%);
       width: 4px;
-      background: linear-gradient(to bottom, #3b82f6, #10b981);
+      background: linear-gradient(to bottom, #3b82f6, #f59e0b);
       height: 100%;
       border-radius: 2px;
     }
@@ -525,8 +525,8 @@
       border-color: #3b82f6;
     }
 
-    .timeline-bubble.completed {
-      border-color: #10b981;
+    .timeline-bubble.ended {
+      border-color: #f59e0b;
     }
 
     .timeline-bubble:hover {
@@ -542,8 +542,8 @@
       color: #3b82f6;
     }
 
-    .timeline-bubble.completed .icon {
-      color: #10b981;
+    .timeline-bubble.ended .icon {
+      color: #f59e0b;
     }
 
     .timeline-bubble .content {
@@ -1047,12 +1047,12 @@
             });
           }
 
-          // Add "Completed" milestone if approved
-          if (row.approved === 'Yes' && row.approvedDate && !isNaN(new Date(row.approvedDate))) {
+          // Add "Ended" milestone using phaseEnd
+          if (row.phaseEnd && !isNaN(new Date(row.phaseEnd))) {
             milestones.push({
-              date: new Date(row.approvedDate),
+              date: new Date(row.phaseEnd),
               phase: row.testingPhase || 'Unnamed Phase',
-              status: 'Completed',
+              status: 'Ended',
               qaName: row.qaName || 'N/A',
               projectName: row.projectName || 'N/A'
             });
@@ -1089,7 +1089,7 @@
           const bubble = document.createElement('div');
           bubble.className = `timeline-bubble ${milestone.status.toLowerCase()}`;
           bubble.innerHTML = `
-            <i class="fas ${milestone.status === 'Started' ? 'fa-play' : 'fa-check-circle'} icon"></i>
+            <i class="fas ${milestone.status === 'Started' ? 'fa-play' : 'fa-stop'} icon"></i>
             <div class="content">
               <h4>${milestone.date.toISOString().split('T')[0]}</h4>
               <p><strong>Phase:</strong> ${milestone.phase}</p>
