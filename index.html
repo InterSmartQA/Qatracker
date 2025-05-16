@@ -802,17 +802,16 @@
       element.classList.toggle('collapsed');
     }
 
-    // Function to update the project filter dropdown (Fix for Issue 1)
+    // Function to update the project filter dropdown
     function updateProjectFilter(rows) {
       console.log('Updating project filter with rows:', rows.length);
       const projectFilter = document.getElementById('projectFilter');
       projectFilter.innerHTML = '<option value="">Filter by Project</option>';
       
-      // Use Set to ensure unique project names
       const projectNames = [...new Set(rows
         .map(row => row.projectName)
         .filter(name => name && name.trim() !== '')
-      )].sort(); // Sort for consistency
+      )].sort();
 
       projectNames.forEach(name => {
         const option = document.createElement('option');
@@ -822,17 +821,16 @@
       });
     }
 
-    // Function to update the milestone project filter dropdown (Fix for Issue 1)
+    // Function to update the milestone project filter dropdown
     function updateMilestoneProjectFilter(rows) {
       console.log('Updating milestone project filter with rows:', rows.length);
       const milestoneProjectFilter = document.getElementById('milestoneProjectFilter');
       milestoneProjectFilter.innerHTML = '<option value="">All Projects</option>';
       
-      // Use Set to ensure unique project names
       const projectNames = [...new Set(rows
         .map(row => row.projectName)
         .filter(name => name && name.trim() !== '')
-      )].sort(); // Sort for consistency
+      )].sort();
 
       projectNames.forEach(name => {
         const option = document.createElement('option');
@@ -1136,7 +1134,6 @@
       console.log('Editing row with ID:', rowId);
       const cells = Array.from(row.children).slice(0, 16);
 
-      // Destroy existing datepickers
       datepickers.forEach(dp => dp.destroy());
       datepickers = [];
 
@@ -1185,7 +1182,6 @@
       }
     }
 
-    // Fixed saveRow function (Fix for Issue 2)
     function saveRow(button) {
       if (!user) {
         showError('Please sign in to save rows.');
@@ -1210,7 +1206,6 @@
       const cells = Array.from(row.children).slice(0, 16);
       const data = cells.map(cell => cell.querySelector('input').value);
 
-      // Validate required fields
       if (!data[0] || !data[1]) {
         showError('Project Name and QA Name are required.');
         button.classList.remove('loading');
@@ -1249,7 +1244,6 @@
           rows.push(rowData);
           row.removeAttribute('data-new');
         } else {
-          // Find the row by rowId and update it
           const rowIndex = rows.findIndex(r => r.rowId === rowId);
           if (rowIndex === -1) {
             console.error(`Row with ID ${rowId} not found in Firestore`);
@@ -1259,7 +1253,6 @@
           rows[rowIndex] = rowData;
         }
         
-        // Update Firestore with the new rows array
         return projectRef.set({ rows }, { merge: true });
       }).then(() => {
         console.log('Row saved successfully');
@@ -1277,13 +1270,13 @@
       });
     }
 
-    // Fixed deleteRow function (Fix for Issue 3)
+    // Updated deleteRow function to fix deletion issue
     function deleteRow(button) {
       if (!user) {
         showError('Please sign in to delete rows.');
         return;
       }
-      console.log('Deleting row');
+      console.log('Initiating row deletion');
       event.stopPropagation();
       if (!confirm('Are you sure you want to delete this row?')) return;
 
@@ -1300,52 +1293,70 @@
         button.disabled = false;
         return;
       }
-      console.log('Deleting row with ID:', rowId);
+      console.log('Attempting to delete row with ID:', rowId);
 
+      // Handle unsaved new rows
       if (row.getAttribute('data-new') === 'true') {
         console.log('Removing unsaved new row');
         row.remove();
         button.classList.remove('loading');
         button.disabled = false;
         alert('Row deleted successfully! (Not saved to Firestore)');
+        filterTable();
         return;
       }
 
       const projectRef = db.collection('qaProjects').doc('Project Alpha');
-      projectRef.get().then(doc => {
-        if (!doc.exists || !doc.data().rows) {
-          console.log('Firestore document does not exist or has no rows, creating with empty rows');
-          return projectRef.set({ rows: [] }).then(() => {
-            throw new Error(`Row with ID ${rowId} not found in Firestore`);
-          });
-        }
-        let rows = [...doc.data().rows] || [];
-        console.log('Firestore rows before deletion:', rows.length, rows.map(r => r.rowId));
+      
+      // Use Firestore transaction for safer updates
+      db.runTransaction(async transaction => {
+        const doc = await transaction.get(projectRef);
         
-        // Filter out the row to delete
-        const updatedRows = rows.filter(r => r.rowId !== rowId);
-        if (updatedRows.length === rows.length) {
-          console.warn(`Row with ID ${rowId} not found in Firestore, removing from DOM`);
-          row.remove();
-          alert('Row removed from display (not found in Firestore).');
+        if (!doc.exists) {
+          console.log('Firestore document does not exist, creating with empty rows');
+          transaction.set(projectRef, { rows: [] });
+          throw new Error('Document does not exist');
+        }
+
+        let rows = doc.data().rows || [];
+        console.log('Firestore rows before deletion:', rows.length, rows.map(r => r.rowId));
+
+        // Find the row to delete
+        const rowIndex = rows.findIndex(r => r.rowId === rowId);
+        if (rowIndex === -1) {
+          console.warn(`Row with ID ${rowId} not found in Firestore`);
           throw new Error(`Row with ID ${rowId} not found in Firestore`);
         }
-        
-        console.log('Firestore rows after deletion:', updatedRows.length);
-        return projectRef.set({ rows: updatedRows }, { merge: true });
-      }).then(() => {
-        console.log('Row deleted successfully');
+
+        // Remove the row
+        rows.splice(rowIndex, 1);
+        console.log('Firestore rows after deletion:', rows.length, rows.map(r => r.rowId));
+
+        // Update Firestore
+        transaction.set(projectRef, { rows }, { merge: true });
+        return rows;
+      }).then(updatedRows => {
+        console.log('Row deleted successfully from Firestore');
+        allRows = updatedRows;
         alert('Row deleted successfully!');
         button.classList.remove('loading');
         button.disabled = false;
-        loadDataFromFirestore();
+        
+        // Update UI
+        updateProjectFilter(allRows);
+        updateMilestoneProjectFilter(allRows);
+        populateMilestoneTab(allRows);
+        filterTable();
+        updateChartWithFilter();
       }).catch(err => {
-        console.error('Error deleting row:', err.code, err.message);
+        console.error('Error deleting row:', err.message);
         if (err.message.includes('not found in Firestore')) {
-          console.log('Row not found in Firestore, already removed from DOM');
+          console.log('Row not found in Firestore, removing from DOM');
+          row.remove();
+          alert('Row removed from display (not found in Firestore).');
           button.classList.remove('loading');
           button.disabled = false;
-          loadDataFromFirestore();
+          filterTable();
         } else {
           showError('Failed to delete the row: ' + err.message);
           button.classList.remove('loading');
